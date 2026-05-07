@@ -1,0 +1,113 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Core Models
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  password    String?
+  role        Role     @default(EMPLOYEE)
+  employeeId  String?  @unique
+  employee    Employee? @relation(fields: [employeeId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Employee {
+  id            String            @id @default(uuid())
+  firstName     String
+  lastName      String
+  phone         String?
+  email         String?           @unique
+  departmentId  String?
+  positionId    String?
+  hireDate      DateTime
+  status        EmploymentStatus  @default(ACTIVE)
+  user          User?
+  department    Department?       @relation(fields: [departmentId], references: [id])
+  position      Position?         @relation(fields: [positionId], references: [id])
+  documents     EmployeeDocument[]
+  emergencyContacts EmergencyContact[]
+  managedDepartments Department[] @relation("DepartmentManager")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  managerId   String?
+  manager     Employee? @relation("DepartmentManager", fields: [managerId], references: [id])
+  employees   Employee[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Position {
+  id          String   @id @default(uuid())
+  title       String   @unique
+  description String?
+  level       String?
+  department  String?
+  employees   Employee[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model EmployeeDocument {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  documentType String
+  fileName    String
+  filePath    String
+  uploadedAt  DateTime @default(now())
+}
+
+model EmergencyContact {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  name        String
+  relationship String
+  phone       String
+  isPrimary   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Audit and Workflow Models
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorId     String
+  action      String
+  entityType  String
+  entityId    String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+}
+
+// Enums
+enum Role {
+  SUPER_ADMIN
+  HR_ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  INACTIVE
+  TERMINATED
+  ON_LEAVE
+}
