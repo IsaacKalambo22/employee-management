@@ -5,7 +5,6 @@ import { Sidebar } from "@/components/sidebar"
 import { Header } from "@/components/header"
 import { Breadcrumbs } from "@/components/breadcrumbs"
 
-
 export default async function DashboardLayout({
   children,
 }: {

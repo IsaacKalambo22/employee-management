@@ -13,40 +13,33 @@ interface BreadcrumbItem {
 export function Breadcrumbs() {
   const pathname = usePathname()
   
+  const segmentMap: Record<string, string> = {
+    dashboard: "Dashboard",
+    admin: "Admin",
+    hr: "HR",
+    manager: "Manager",
+    employee: "Employee",
+    employees: "Employees",
+    leave: "Leave",
+    requisitions: "Requisitions",
+    attendance: "Attendance",
+    payroll: "Payroll",
+    settings: "Settings",
+  }
+
   const getBreadcrumbs = (): BreadcrumbItem[] => {
     if (pathname === "/dashboard") return []
-    
+
     const segments = pathname.split("/").filter(Boolean)
     const breadcrumbs: BreadcrumbItem[] = []
-    
-    segments.forEach((segment, index) => {
-      if (segment === "dashboard") {
-        breadcrumbs.push({ label: "Dashboard", href: "/dashboard" })
-      } else if (segment === "admin") {
-        breadcrumbs.push({ label: "Admin", href: "/dashboard/admin" })
-      } else if (segment === "hr") {
-        breadcrumbs.push({ label: "HR", href: "/dashboard/hr" })
-      } else if (segment === "manager") {
-        breadcrumbs.push({ label: "Manager", href: "/dashboard/manager" })
-      } else if (segment === "employee") {
-        breadcrumbs.push({ label: "Employee", href: "/dashboard/employee" })
-      } else if (segment === "employees") {
-        breadcrumbs.push({ label: "Employees", href: "/dashboard/employees" })
-      } else if (segment === "leave") {
-        breadcrumbs.push({ label: "Leave", href: "/dashboard/leave" })
-      } else if (segment === "requisitions") {
-        breadcrumbs.push({ label: "Requisitions", href: "/dashboard/requisitions" })
-      } else if (segment === "attendance") {
-        breadcrumbs.push({ label: "Attendance", href: "/dashboard/attendance" })
-      } else if (segment === "payroll") {
-        breadcrumbs.push({ label: "Payroll", href: "/dashboard/payroll" })
-      } else if (segment === "settings") {
-        breadcrumbs.push({ label: "Settings", href: "/dashboard/settings" })
-      } else {
-        breadcrumbs.push({ label: segment.charAt(0).toUpperCase() + segment.slice(1) })
-      }
+    let accumulatedPath = ""
+
+    segments.forEach((segment) => {
+      accumulatedPath += `/${segment}`
+      const label = segmentMap[segment] ?? (segment.charAt(0).toUpperCase() + segment.slice(1))
+      breadcrumbs.push({ label, href: accumulatedPath })
     })
-    
+
     return breadcrumbs
   }
 

@@ -1,7 +1,6 @@
 "use client"
 
 import { signOut, useSession } from "next-auth/react"
-import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
@@ -23,14 +22,12 @@ export function Header() {
           </span>
         </div>
         <DropdownMenu>
-          <DropdownMenuTrigger>
-            <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="text-sm">
-                  {session?.user?.email?.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </Button>
+          <DropdownMenuTrigger className="rounded-full outline-none focus:ring-2 focus:ring-gray-300">
+            <Avatar className="h-8 w-8 cursor-pointer">
+              <AvatarFallback className="text-sm bg-gray-200 text-gray-700">
+                {session?.user?.email?.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56" align="end">
             <div className="flex items-center justify-start gap-2 p-2">
