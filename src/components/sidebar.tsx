@@ -28,11 +28,11 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <div className="flex flex-col w-64 bg-white shadow-lg">
-      <div className="flex items-center justify-center h-16 border-b">
-        <h1 className="text-xl font-bold text-gray-800">HR System</h1>
+    <div className="flex flex-col w-64 bg-white shadow-lg border-r border-gray-200">
+      <div className="flex items-center justify-center h-16 border-b border-gray-200">
+        <h1 className="text-xl font-bold text-gray-900">HR System</h1>
       </div>
-      <nav className="flex-1 px-4 py-4 space-y-2">
+      <nav className="flex-1 px-3 py-4 space-y-1">
         {navigation.map((item) => {
           const isActive = pathname === item.href
           return (
@@ -40,12 +40,13 @@ export function Sidebar() {
               <Button
                 variant={isActive ? "secondary" : "ghost"}
                 className={cn(
-                  "w-full justify-start",
-                  isActive && "bg-gray-100"
+                  "w-full justify-start h-10 px-3",
+                  isActive && "bg-gray-100 text-gray-900",
+                  !isActive && "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                 )}
               >
                 <item.icon className="mr-3 h-4 w-4" />
-                {item.name}
+                <span className="text-sm font-medium">{item.name}</span>
               </Button>
             </Link>
           )
