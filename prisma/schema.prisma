@@ -38,6 +38,9 @@ model Employee {
   documents     EmployeeDocument[]
   emergencyContacts EmergencyContact[]
   managedDepartments Department[] @relation("DepartmentManager")
+  leaveBalances LeaveBalance[]
+  leaveRequests LeaveRequest[]
+  requisitions  Requisition[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -86,6 +89,93 @@ model EmergencyContact {
   updatedAt   DateTime @updatedAt
 }
 
+// Leave Management Models
+model LeavePolicy {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  description   String?
+  daysPerYear   Int
+  carryOver     Boolean  @default(false)
+  maxCarryOver  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  balances      LeaveBalance[]
+  requests      LeaveRequest[]
+}
+
+model LeaveBalance {
+  id            String      @id @default(uuid())
+  employeeId    String
+  employee      Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  policyId      String
+  policy        LeavePolicy @relation(fields: [policyId], references: [id])
+  year          Int
+  allocated     Int
+  used          Int         @default(0)
+  pending       Int         @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([employeeId, policyId, year])
+}
+
+model LeaveRequest {
+  id            String        @id @default(uuid())
+  employeeId    String
+  employee      Employee      @relation(fields: [employeeId], references: [id])
+  policyId      String
+  policy        LeavePolicy   @relation(fields: [policyId], references: [id])
+  startDate     DateTime
+  endDate       DateTime
+  days          Int
+  reason        String?
+  status        LeaveStatus   @default(PENDING)
+  approvals     LeaveApproval[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model LeaveApproval {
+  id            String        @id @default(uuid())
+  requestId     String
+  request       LeaveRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  approverId    String
+  level         Int
+  status        ApprovalStatus @default(PENDING)
+  comment       String?
+  actedAt       DateTime?
+  createdAt     DateTime      @default(now())
+}
+
+// Requisition Models
+model Requisition {
+  id            String             @id @default(uuid())
+  employeeId    String
+  employee      Employee           @relation(fields: [employeeId], references: [id])
+  title         String
+  description   String
+  amount        Decimal?
+  category      String
+  status        RequisitionStatus  @default(PENDING)
+  priority      String             @default("NORMAL")
+  approvals     RequisitionApproval[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+}
+
+model RequisitionApproval {
+  id              String           @id @default(uuid())
+  requisitionId   String
+  requisition     Requisition      @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  approverId      String
+  level           Int
+  role            String
+  status          ApprovalStatus   @default(PENDING)
+  comment         String?
+  actedAt         DateTime?
+  createdAt       DateTime         @default(now())
+}
+
 // Audit and Workflow Models
 model AuditLog {
   id          String   @id @default(uuid())
@@ -110,4 +200,29 @@ enum EmploymentStatus {
   INACTIVE
   TERMINATED
   ON_LEAVE
+}
+
+enum LeaveStatus {
+  PENDING
+  MANAGER_APPROVED
+  HR_APPROVED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+}
+
+enum RequisitionStatus {
+  PENDING
+  MANAGER_APPROVED
+  FINANCE_APPROVED
+  APPROVED
+  REJECTED
+  CANCELLED
 }

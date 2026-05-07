@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
+import bcrypt from "bcryptjs"
 import { PrismaClient } from "@prisma/client"
 
 const prisma = new PrismaClient()
@@ -28,17 +29,20 @@ export const authOptions: NextAuthOptions = {
           }
         })
 
-        if (!user) {
+        if (!user || !user.password) {
           return null
         }
 
-        // TODO: Implement proper password verification
-        // For now, accept any password for demo purposes
+        const passwordValid = await bcrypt.compare(credentials.password, user.password)
+        if (!passwordValid) {
+          return null
+        }
+
         return {
           id: user.id,
           email: user.email,
           role: user.role,
-          employeeId: user.employeeId
+          employeeId: user.employeeId ?? undefined
         }
       }
     })

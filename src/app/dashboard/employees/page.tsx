@@ -1,19 +1,32 @@
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Plus, Search, MoreHorizontal } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Plus, Users } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { getEmployees, getDepartments } from "@/lib/actions/employees"
+import { EmployeeSearch } from "@/components/employees/employee-search"
+import { EmployeeActions } from "@/components/employees/employee-actions"
 
-const employees = [
-  { id: "1", firstName: "John", lastName: "Smith", email: "john.smith@company.com", department: "Human Resources", position: "HR Manager", status: "Active", hireDate: "2023-01-15" },
-  { id: "2", firstName: "Jane", lastName: "Doe", email: "jane.doe@company.com", department: "IT Department", position: "IT Manager", status: "Active", hireDate: "2023-02-01" },
-  { id: "3", firstName: "Mike", lastName: "Johnson", email: "mike.johnson@company.com", department: "IT Department", position: "Software Developer", status: "Active", hireDate: "2023-03-15" },
-  { id: "4", firstName: "Sarah", lastName: "Williams", email: "sarah.williams@company.com", department: "Finance", position: "Accountant", status: "Active", hireDate: "2023-04-01" },
-]
+const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  ACTIVE: "default",
+  INACTIVE: "secondary",
+  TERMINATED: "destructive",
+  ON_LEAVE: "outline",
+}
 
-export default function EmployeesPage() {
+export default async function EmployeesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ search?: string; departmentId?: string }>
+}) {
+  const params = await searchParams
+  const [employees, departments] = await Promise.all([
+    getEmployees(params.search, params.departmentId),
+    getDepartments(),
+  ])
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -21,67 +34,68 @@ export default function EmployeesPage() {
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Employees</h1>
           <p className="text-gray-600 text-sm mt-1">Manage employee records and information</p>
         </div>
-        <Button size="sm">
+        <Link href="/dashboard/employees/new" className={cn(buttonVariants({ size: "sm" }), "inline-flex items-center")}>
           <Plus className="mr-2 h-4 w-4" />
           Add Employee
-        </Button>
+        </Link>
       </div>
+
+      <EmployeeSearch departments={departments} />
 
       <Card>
         <CardHeader className="pb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <CardTitle className="text-lg">Employee List</CardTitle>
-              <CardDescription>{employees.length} total employees</CardDescription>
-            </div>
-            <div className="relative w-full sm:w-[280px]">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search employees..." className="pl-8" />
-            </div>
-          </div>
+          <CardTitle className="text-lg">Employee List</CardTitle>
+          <CardDescription>{employees.length} employee{employees.length !== 1 ? "s" : ""} found</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {employees.map((employee) => (
-              <div key={employee.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                <div className="flex items-center gap-3 min-w-0">
-                  <Avatar className="h-9 w-9 flex-shrink-0">
-                    <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
-                      {employee.firstName[0]}{employee.lastName[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{employee.firstName} {employee.lastName}</p>
-                    <p className="text-xs text-muted-foreground truncate">{employee.email}</p>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      <Badge variant="secondary" className="text-xs">{employee.department}</Badge>
-                      <Badge variant="outline" className="text-xs hidden sm:inline-flex">{employee.position}</Badge>
+          {employees.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+              <Users className="h-10 w-10 mb-3 opacity-40" />
+              <p className="text-sm font-medium">No employees found</p>
+              <p className="text-xs mt-1">Try adjusting your search or add a new employee</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {employees.map((employee) => (
+                <div key={employee.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar className="h-9 w-9 flex-shrink-0">
+                      <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
+                        {employee.firstName[0]}{employee.lastName[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <Link href={`/dashboard/employees/${employee.id}`}>
+                        <p className="font-medium text-sm truncate hover:text-blue-600 transition-colors">
+                          {employee.firstName} {employee.lastName}
+                        </p>
+                      </Link>
+                      <p className="text-xs text-muted-foreground truncate">{employee.email ?? "No email"}</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {employee.department && (
+                          <Badge variant="secondary" className="text-xs">{employee.department.name}</Badge>
+                        )}
+                        {employee.position && (
+                          <Badge variant="outline" className="text-xs hidden sm:inline-flex">{employee.position.title}</Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                  <div className="hidden sm:flex flex-col items-end">
-                    <Badge variant={employee.status === "Active" ? "default" : "secondary"} className="text-xs">
-                      {employee.status}
-                    </Badge>
-                    <p className="text-xs text-muted-foreground mt-1">{employee.hireDate}</p>
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <div className="hidden sm:flex flex-col items-end">
+                      <Badge variant={statusVariant[employee.status] ?? "secondary"} className="text-xs">
+                        {employee.status.replace("_", " ")}
+                      </Badge>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(employee.hireDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <EmployeeActions employeeId={employee.id} />
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-gray-100 outline-none">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>View Profile</DropdownMenuItem>
-                      <DropdownMenuItem>Edit Employee</DropdownMenuItem>
-                      <DropdownMenuItem>View Documents</DropdownMenuItem>
-                      <DropdownMenuItem>Attendance History</DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600">Terminate</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
