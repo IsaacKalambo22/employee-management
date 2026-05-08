@@ -98,14 +98,14 @@ Comprehensive HR Management System with workflow approvals, requisitions, and ro
 **Objectives:**
 - [x] Requisition application flow
 - [x] **Multi-level approval** (Manager/Dept Head → Finance)
-- [ ] Finance fund availability check
-- [ ] LPO processing
+- [x] Finance fund availability check
+- [x] LPO processing
 - [x] Requisition tracking
 
 **Deliverables:**
 - [x] Requisition management system
-- [ ] Finance integration
-- [ ] Purchase order processing
+- [x] Finance integration (budget tracking)
+- [x] Purchase order processing (LPO)
 - [x] Approval workflow
 
 ---

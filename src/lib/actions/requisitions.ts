@@ -110,6 +110,26 @@ export async function approveRequisition(requisitionId: string, level: number): 
     const requisition = await prisma.requisition.findUnique({ where: { id: requisitionId }, include: { approvals: true } })
     if (!requisition) return { message: "Requisition not found" }
 
+    // Finance fund availability check for level 2 (Finance approval)
+    if (level === 2 && requisition.amount) {
+      const currentYear = new Date().getFullYear()
+      const budget = await prisma.budget.findFirst({
+        where: {
+          category: requisition.category,
+          year: currentYear,
+        },
+      })
+
+      if (!budget) {
+        return { message: `No budget found for category: ${requisition.category}` }
+      }
+
+      const available = budget.amount.minus(budget.spent)
+      if (available.lt(requisition.amount)) {
+        return { message: `Insufficient funds. Available: ${available}, Required: ${requisition.amount}` }
+      }
+    }
+
     const approval = requisition.approvals.find((a) => a.level === level)
     if (!approval) return { message: "Approval level not found" }
 
@@ -125,6 +145,24 @@ export async function approveRequisition(requisitionId: string, level: number): 
         where: { id: requisitionId },
         data: { status: "APPROVED" },
       })
+
+      // Update budget spent amount if requisition has amount
+      if (requisition.amount) {
+        const currentYear = new Date().getFullYear()
+        const budget = await prisma.budget.findFirst({
+          where: {
+            category: requisition.category,
+            year: currentYear,
+          },
+        })
+
+        if (budget) {
+          await prisma.budget.update({
+            where: { id: budget.id },
+            data: { spent: { increment: requisition.amount } },
+          })
+        }
+      }
     } else {
       await prisma.requisition.update({
         where: { id: requisitionId },
@@ -179,4 +217,86 @@ export async function rejectRequisition(requisitionId: string, comment: string):
 
   revalidatePath("/dashboard/requisitions")
   return { success: true }
+}
+
+// LPO Processing
+export async function createLPO(
+  requisitionId: string,
+  vendorName: string,
+  vendorContact?: string,
+  expectedDelivery?: string
+): Promise<RequisitionFormState> {
+  const session = await getServerSession(authOptions)
+  if (!session) return { message: "Unauthorized" }
+
+  try {
+    const requisition = await prisma.requisition.findUnique({ where: { id: requisitionId } })
+    if (!requisition) return { message: "Requisition not found" }
+    if (requisition.status !== "APPROVED") return { message: "Requisition must be approved before creating LPO" }
+    if (!requisition.amount) return { message: "Requisition must have an amount to create LPO" }
+
+    // Generate unique LPO number
+    const year = new Date().getFullYear()
+    const lpoCount = await prisma.lPO.count()
+    const lpoNumber = `LPO-${year}-${String(lpoCount + 1).padStart(4, '0')}`
+
+    await prisma.lPO.create({
+      data: {
+        requisitionId,
+        lpoNumber,
+        vendorName,
+        vendorContact,
+        estimatedAmount: requisition.amount,
+        expectedDelivery: expectedDelivery ? new Date(expectedDelivery) : null,
+      },
+    })
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: session.user.id,
+        action: "CREATE_LPO",
+        entityType: "LPO",
+        entityId: requisitionId,
+        metadata: { lpoNumber, vendorName },
+      },
+    })
+  } catch (e) {
+    return { message: "Failed to create LPO" }
+  }
+
+  revalidatePath("/dashboard/requisitions")
+  return { success: true, message: "LPO created successfully" }
+}
+
+export async function getLPOs() {
+  const session = await getServerSession(authOptions)
+  if (!session) throw new Error("Unauthorized")
+
+  return prisma.lPO.findMany({
+    include: {
+      requisition: {
+        include: {
+          employee: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+    orderBy: { issuedDate: "desc" },
+  })
+}
+
+export async function getLPO(id: string) {
+  const session = await getServerSession(authOptions)
+  if (!session) throw new Error("Unauthorized")
+
+  return prisma.lPO.findUnique({
+    where: { id },
+    include: {
+      requisition: {
+        include: {
+          employee: { include: { department: true } },
+          approvals: true,
+        },
+      },
+    },
+  })
 }

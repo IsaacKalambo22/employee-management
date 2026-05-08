@@ -159,6 +159,7 @@ model Requisition {
   status        RequisitionStatus  @default(PENDING)
   priority      String             @default("NORMAL")
   approvals     RequisitionApproval[]
+  lpo           LPO?
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 }
@@ -174,6 +175,33 @@ model RequisitionApproval {
   comment         String?
   actedAt         DateTime?
   createdAt       DateTime         @default(now())
+}
+
+// Finance Models
+model Budget {
+  id          String   @id @default(uuid())
+  category    String   @unique
+  amount      Decimal
+  spent       Decimal  @default(0)
+  year        Int
+  department  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model LPO {
+  id              String      @id @default(uuid())
+  requisitionId   String      @unique
+  requisition     Requisition @relation(fields: [requisitionId], references: [id])
+  lpoNumber       String      @unique
+  vendorName      String
+  vendorContact   String?
+  estimatedAmount Decimal
+  status          String      @default("ISSUED")
+  issuedDate      DateTime    @default(now())
+  expectedDelivery DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 }
 
 // Audit and Workflow Models
