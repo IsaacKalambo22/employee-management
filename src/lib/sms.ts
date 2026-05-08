@@ -14,16 +14,29 @@ interface SMSOptions {
 
 export async function sendSMS({ to, text }: SMSOptions) {
   try {
-    await vonage.sms.send({
+    const response = await vonage.sms.send({
       to,
       from: FROM_NUMBER,
       text,
     })
+    
+    // Check if any messages failed
+    const messages = response.messages || []
+    const failedMessages = messages.filter((msg: any) => msg.status !== '0')
+    
+    if (failedMessages.length > 0) {
+      console.error('SMS failed:', failedMessages)
+      return { 
+        success: false, 
+        error: `SMS failed: ${failedMessages.map((m: any) => m['error-text'] || m.status).join(', ')}` 
+      }
+    }
+    
     console.log('SMS sent successfully')
     return { success: true }
-  } catch (error) {
+  } catch (error: any) {
     console.error('SMS error:', error)
-    return { success: false, error: 'Failed to send SMS' }
+    return { success: false, error: error.message || 'Failed to send SMS' }
   }
 }
 
