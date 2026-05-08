@@ -60,7 +60,7 @@ export async function uploadDocument(
 
     if (uploadError) {
       console.error("Supabase upload error:", uploadError)
-      return { message: "Failed to upload file" }
+      return { message: `Failed to upload file: ${uploadError.message}` }
     }
 
     // Get public URL

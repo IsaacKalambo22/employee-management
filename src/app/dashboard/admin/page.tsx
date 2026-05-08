@@ -1,7 +1,23 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Settings, Database, Shield } from "lucide-react"
+import { EmployeeAnalyticsCards, AttendanceAnalyticsCards, LeaveAnalyticsCards, RequisitionAnalyticsCards, PayrollAnalyticsCards } from "@/components/analytics/analytics-cards"
+import { getEmployeeAnalytics, getAttendanceAnalytics, getLeaveAnalytics, getRequisitionAnalytics, getPayrollAnalytics } from "@/lib/actions/analytics"
+import { prisma } from "@/lib/db"
+import { Users, Settings, Database, Shield, FileText } from "lucide-react"
 
-export default function AdminDashboard() {
+export default async function AdminDashboard() {
+  const [employeeAnalytics, attendanceAnalytics, leaveAnalytics, requisitionAnalytics, payrollAnalytics] = await Promise.all([
+    getEmployeeAnalytics(),
+    getAttendanceAnalytics(),
+    getLeaveAnalytics(),
+    getRequisitionAnalytics(),
+    getPayrollAnalytics(),
+  ])
+
+  const totalUsers = await prisma.user.count()
+  const totalDepartments = await prisma.department.count()
+  const totalPositions = await prisma.position.count()
+  const pendingApprovals = leaveAnalytics.pending + requisitionAnalytics.pending
+
   return (
     <div className="space-y-6">
       <div>
@@ -16,7 +32,7 @@ export default function AdminDashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">5</div>
+            <div className="text-2xl font-bold">{totalUsers}</div>
             <p className="text-xs text-muted-foreground">
               System users
             </p>
@@ -29,7 +45,7 @@ export default function AdminDashboard() {
             <Settings className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3</div>
+            <div className="text-2xl font-bold">{totalDepartments}</div>
             <p className="text-xs text-muted-foreground">
               Active departments
             </p>
@@ -38,87 +54,79 @@ export default function AdminDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Database Status</CardTitle>
-            <Database className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Pending Approvals</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">Healthy</div>
+            <div className="text-2xl font-bold">{pendingApprovals}</div>
             <p className="text-xs text-muted-foreground">
-              All systems operational
+              Awaiting review
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Security</CardTitle>
+            <CardTitle className="text-sm font-medium">Positions</CardTitle>
             <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">Secure</div>
+            <div className="text-2xl font-bold">{totalPositions}</div>
             <p className="text-xs text-muted-foreground">
-              Authentication active
+              Job positions
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>System Management</CardTitle>
-            <CardDescription>
-              Administrative functions and system controls
-            </CardDescription>
+            <CardTitle>Employee Analytics</CardTitle>
+            <CardDescription>Employee statistics and distribution</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <p className="text-sm font-medium">User Management</p>
-                <p className="text-xs text-muted-foreground">Manage system users and roles</p>
-              </div>
-              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <p className="text-sm font-medium">Department Configuration</p>
-                <p className="text-xs text-muted-foreground">Setup and manage departments</p>
-              </div>
-              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <p className="text-sm font-medium">System Settings</p>
-                <p className="text-xs text-muted-foreground">Configure system parameters</p>
-              </div>
-              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <p className="text-sm font-medium">Audit Logs</p>
-                <p className="text-xs text-muted-foreground">View system activity logs</p>
-              </div>
-            </div>
+            <EmployeeAnalyticsCards analytics={employeeAnalytics} />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Quick Stats</CardTitle>
-            <CardDescription>
-              System overview and statistics
-            </CardDescription>
+            <CardTitle>Attendance Analytics</CardTitle>
+            <CardDescription>Attendance statistics for this month</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">Active Sessions</span>
-                <span className="text-sm text-green-600">1</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">Failed Logins (24h)</span>
-                <span className="text-sm text-red-600">0</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">System Uptime</span>
-                <span className="text-sm text-green-600">100%</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">Last Backup</span>
-                <span className="text-sm text-muted-foreground">N/A</span>
-              </div>
-            </div>
+            <AttendanceAnalyticsCards analytics={attendanceAnalytics} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Leave Analytics</CardTitle>
+            <CardDescription>Leave request statistics for this month</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <LeaveAnalyticsCards analytics={leaveAnalytics} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Requisition Analytics</CardTitle>
+            <CardDescription>Requisition statistics for this month</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RequisitionAnalyticsCards analytics={requisitionAnalytics} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Payroll Analytics</CardTitle>
+            <CardDescription>Payroll statistics for this month</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PayrollAnalyticsCards analytics={payrollAnalytics} />
           </CardContent>
         </Card>
       </div>

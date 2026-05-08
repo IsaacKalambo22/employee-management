@@ -1,18 +1,35 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { EmployeeAnalyticsCards, AttendanceAnalyticsCards, LeaveAnalyticsCards, RequisitionAnalyticsCards } from "@/components/analytics/analytics-cards"
-import { getEmployeeAnalytics, getAttendanceAnalytics, getLeaveAnalytics, getRequisitionAnalytics } from "@/lib/actions/analytics"
+import { AttendanceChart, LeaveChart, DepartmentChart, PayrollChart } from "@/components/analytics/analytics-charts"
+import { getEmployeeAnalytics, getAttendanceAnalytics, getLeaveAnalytics, getRequisitionAnalytics, getPayrollAnalytics } from "@/lib/actions/analytics"
+import { prisma } from "@/lib/db"
 import { Users, Calendar, FileText, Briefcase } from "lucide-react"
 
 export default async function HRDashboard() {
-  const [employeeAnalytics, attendanceAnalytics, leaveAnalytics, requisitionAnalytics] = await Promise.all([
+  const [employeeAnalytics, attendanceAnalytics, leaveAnalytics, requisitionAnalytics, payrollAnalytics] = await Promise.all([
     getEmployeeAnalytics(),
     getAttendanceAnalytics(),
     getLeaveAnalytics(),
     getRequisitionAnalytics(),
+    getPayrollAnalytics(),
   ])
 
   const pendingLeave = leaveAnalytics.pending
   const pendingRequisitions = requisitionAnalytics.pending
+
+  // Get department distribution data
+  const departments = await prisma.department.findMany({
+    include: {
+      _count: {
+        select: { employees: true },
+      },
+    },
+  })
+
+  const departmentChartData = departments.map((dept) => ({
+    name: dept.name,
+    employees: dept._count.employees,
+  }))
 
   return (
     <div className="space-y-6">
@@ -83,6 +100,16 @@ export default async function HRDashboard() {
           </CardHeader>
           <CardContent>
             <EmployeeAnalyticsCards analytics={employeeAnalytics} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Department Distribution</CardTitle>
+            <CardDescription>Employees by department</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DepartmentChart data={departmentChartData} />
           </CardContent>
         </Card>
 

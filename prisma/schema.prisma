@@ -354,3 +354,31 @@ enum PayrollStatus {
   PAID
   CANCELLED
 }
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum JobType {
+  PAYROLL_PROCESSING
+  ATTendance_REMINDER
+  LEAVE_APPROVAL_REMINDER
+  REPORT_GENERATION
+  DATA_CLEANUP
+}
+
+model BackgroundJob {
+  id          String    @id @default(uuid())
+  type        JobType
+  status      JobStatus  @default(PENDING)
+  payload     Json?
+  result      Json?
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
