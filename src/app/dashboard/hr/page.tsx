@@ -1,7 +1,19 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { EmployeeAnalyticsCards, AttendanceAnalyticsCards, LeaveAnalyticsCards, RequisitionAnalyticsCards } from "@/components/analytics/analytics-cards"
+import { getEmployeeAnalytics, getAttendanceAnalytics, getLeaveAnalytics, getRequisitionAnalytics } from "@/lib/actions/analytics"
 import { Users, Calendar, FileText, Briefcase } from "lucide-react"
 
-export default function HRDashboard() {
+export default async function HRDashboard() {
+  const [employeeAnalytics, attendanceAnalytics, leaveAnalytics, requisitionAnalytics] = await Promise.all([
+    getEmployeeAnalytics(),
+    getAttendanceAnalytics(),
+    getLeaveAnalytics(),
+    getRequisitionAnalytics(),
+  ])
+
+  const pendingLeave = leaveAnalytics.pending
+  const pendingRequisitions = requisitionAnalytics.pending
+
   return (
     <div className="space-y-6">
       <div>
@@ -16,9 +28,9 @@ export default function HRDashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">4</div>
+            <div className="text-2xl font-bold">{employeeAnalytics.totalEmployees}</div>
             <p className="text-xs text-muted-foreground">
-              Active employees
+              {employeeAnalytics.activeEmployees} active employees
             </p>
           </CardContent>
         </Card>
@@ -29,7 +41,7 @@ export default function HRDashboard() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{pendingLeave}</div>
             <p className="text-xs text-muted-foreground">
               Pending approval
             </p>
@@ -42,7 +54,7 @@ export default function HRDashboard() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{pendingRequisitions}</div>
             <p className="text-xs text-muted-foreground">
               Pending processing
             </p>
@@ -51,79 +63,56 @@ export default function HRDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Open Positions</CardTitle>
+            <CardTitle className="text-sm font-medium">New Hires</CardTitle>
             <Briefcase className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{employeeAnalytics.newHiresThisMonth}</div>
             <p className="text-xs text-muted-foreground">
-              Active job postings
+              This month
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>HR Functions</CardTitle>
-            <CardDescription>
-              Core HR management tasks
-            </CardDescription>
+            <CardTitle>Employee Analytics</CardTitle>
+            <CardDescription>Employee statistics and distribution</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <p className="text-sm font-medium">Employee Management</p>
-                <p className="text-xs text-muted-foreground">Add, edit, and manage employee records</p>
-              </div>
-              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <p className="text-sm font-medium">Leave Management</p>
-                <p className="text-xs text-muted-foreground">Process leave requests and approvals</p>
-              </div>
-              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <p className="text-sm font-medium">Department Management</p>
-                <p className="text-xs text-muted-foreground">Manage departments and positions</p>
-              </div>
-              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <p className="text-sm font-medium">Recruitment</p>
-                <p className="text-xs text-muted-foreground">Job postings and candidate management</p>
-              </div>
-            </div>
+            <EmployeeAnalyticsCards analytics={employeeAnalytics} />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>
-              Latest HR activities and updates
-            </CardDescription>
+            <CardTitle>Attendance Analytics</CardTitle>
+            <CardDescription>Attendance statistics for this month</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Database seeded with initial data</p>
-                  <p className="text-xs text-muted-foreground">Just now</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Authentication system configured</p>
-                  <p className="text-xs text-muted-foreground">Today</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Role-based access control enabled</p>
-                  <p className="text-xs text-muted-foreground">Today</p>
-                </div>
-              </div>
-            </div>
+            <AttendanceAnalyticsCards analytics={attendanceAnalytics} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Leave Analytics</CardTitle>
+            <CardDescription>Leave request statistics for this month</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <LeaveAnalyticsCards analytics={leaveAnalytics} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Requisition Analytics</CardTitle>
+            <CardDescription>Requisition statistics for this month</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RequisitionAnalyticsCards analytics={requisitionAnalytics} />
           </CardContent>
         </Card>
       </div>
