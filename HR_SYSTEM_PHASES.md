@@ -77,14 +77,17 @@ Comprehensive HR Management System with workflow approvals, requisitions, and ro
 - [x] Leave policies and balances
 - [x] Leave application workflow
 - [x] **Multi-level approval system** (Manager → HR)
-- [ ] Email/SMS notifications
-- [ ] Calendar integration
+- [x] Email notifications (nodemailer)
+- [x] SMS notifications (Vonage)
+- [x] Calendar integration
 - [x] Audit logging system
 
 **Deliverables:**
 - [x] Complete leave management
 - [x] Workflow approval engine
-- [ ] Notification system
+- [x] Email notification system
+- [x] SMS notification system
+- [x] Calendar view for leave requests
 - [x] Audit trail capabilities
 
 ---

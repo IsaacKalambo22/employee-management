@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getLeaveBalances, getLeaveRequests } from "@/lib/actions/leaves"
+import { LeaveCalendar } from "@/components/leaves/leave-calendar"
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   PENDING: { label: "Pending", color: "bg-yellow-100 text-yellow-700", icon: Clock },
@@ -29,6 +30,15 @@ export default async function LeavePage() {
   const totalAvailable = balances.reduce((sum: number, b: any) => sum + (b.allocated - b.used - b.pending), 0)
   const totalUsed = balances.reduce((sum: number, b: any) => sum + b.used, 0)
   const pendingCount = requests.filter((r: any) => r.status === "PENDING").length
+
+  const calendarData = requests.map((r: any) => ({
+    id: r.id,
+    startDate: r.startDate,
+    endDate: r.endDate,
+    status: r.status,
+    employeeName: `${r.employee.firstName} ${r.employee.lastName}`,
+    policyName: r.policy.name,
+  }))
 
   return (
     <div className="space-y-6">
@@ -79,6 +89,8 @@ export default async function LeavePage() {
           </CardContent>
         </Card>
       </div>
+
+      <LeaveCalendar leaveRequests={calendarData} />
 
       <Card>
         <CardHeader>

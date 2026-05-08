@@ -5,6 +5,8 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { sendEmail, getLeaveApprovalEmailTemplate, getLeaveRejectionEmailTemplate, getLeaveRequestEmailTemplate } from "@/lib/email"
+import { sendSMS, getLeaveApprovalSMSTemplate, getLeaveRejectionSMSTemplate, getLeaveRequestSMSTemplate } from "@/lib/sms"
 
 const LeaveRequestSchema = z.object({
   policyId: z.string().min(1, "Policy is required"),
@@ -104,6 +106,11 @@ export async function createLeaveRequest(
   if (days > available) return { message: `Insufficient balance. Available: ${available} days, Requested: ${days} days` }
 
   try {
+    const employee = await prisma.employee.findUnique({
+      where: { id: session.user.employeeId },
+      include: { department: { include: { manager: { include: { user: true } } } } }
+    })
+
     const request = await prisma.leaveRequest.create({
       data: {
         employeeId: session.user.employeeId,
@@ -136,6 +143,35 @@ export async function createLeaveRequest(
         metadata: { days, policyId },
       },
     })
+
+    // Send email notification to manager/approver
+    const policy = await prisma.leavePolicy.findUnique({ where: { id: policyId } })
+    if (employee?.department?.manager?.user?.email && policy) {
+      await sendEmail({
+        to: employee.department.manager.user.email,
+        subject: "New Leave Request for Approval",
+        html: getLeaveRequestEmailTemplate({
+          approverName: employee.department.manager.user.email,
+          employeeName: `${employee.firstName} ${employee.lastName}`,
+          leaveType: policy.name,
+          startDate: start.toLocaleDateString(),
+          endDate: end.toLocaleDateString(),
+          reason,
+        }),
+      })
+      // Send SMS to manager if phone number exists
+      if (employee.department.manager.phone) {
+        await sendSMS({
+          to: employee.department.manager.phone,
+          text: getLeaveRequestSMSTemplate({
+            employeeName: `${employee.firstName} ${employee.lastName}`,
+            leaveType: policy.name,
+            startDate: start.toLocaleDateString(),
+            endDate: end.toLocaleDateString(),
+          }),
+        })
+      }
+    }
   } catch (e) {
     return { message: "Failed to create leave request" }
   }
@@ -149,7 +185,10 @@ export async function approveLeave(requestId: string, level: number): Promise<Le
   if (!session) return { message: "Unauthorized" }
 
   try {
-    const request = await prisma.leaveRequest.findUnique({ where: { id: requestId }, include: { approvals: true } })
+    const request = await prisma.leaveRequest.findUnique({
+      where: { id: requestId },
+      include: { approvals: true, employee: { include: { user: true } }, policy: true }
+    })
     if (!request) return { message: "Request not found" }
 
     const approval = request.approvals.find((a: any) => a.level === level)
@@ -175,6 +214,33 @@ export async function approveLeave(requestId: string, level: number): Promise<Le
           where: { id: balance.id },
           data: { pending: { decrement: request.days }, used: { increment: request.days } },
         })
+      }
+
+      // Send approval email to employee
+      if (request.employee.user?.email) {
+        const approver = await prisma.user.findUnique({ where: { id: session.user.id } })
+        await sendEmail({
+          to: request.employee.user.email,
+          subject: "Leave Request Approved",
+          html: getLeaveApprovalEmailTemplate({
+            employeeName: `${request.employee.firstName} ${request.employee.lastName}`,
+            leaveType: request.policy.name,
+            startDate: new Date(request.startDate).toLocaleDateString(),
+            endDate: new Date(request.endDate).toLocaleDateString(),
+            approverName: approver?.email ?? "HR",
+          }),
+        })
+        // Send SMS to employee if phone number exists
+        if (request.employee.phone) {
+          await sendSMS({
+            to: request.employee.phone,
+            text: getLeaveApprovalSMSTemplate({
+              leaveType: request.policy.name,
+              startDate: new Date(request.startDate).toLocaleDateString(),
+              endDate: new Date(request.endDate).toLocaleDateString(),
+            }),
+          })
+        }
       }
     } else {
       await prisma.leaveRequest.update({
@@ -205,7 +271,10 @@ export async function rejectLeave(requestId: string, comment: string): Promise<L
   if (!session) return { message: "Unauthorized" }
 
   try {
-    const request = await prisma.leaveRequest.findUnique({ where: { id: requestId } })
+    const request = await prisma.leaveRequest.findUnique({
+      where: { id: requestId },
+      include: { employee: { include: { user: true } }, policy: true }
+    })
     if (!request) return { message: "Request not found" }
 
     await prisma.leaveRequest.update({
@@ -227,6 +296,34 @@ export async function rejectLeave(requestId: string, comment: string): Promise<L
       where: { requestId },
       data: { status: "REJECTED", actedAt: new Date(), comment },
     })
+
+    // Send rejection email to employee
+    if (request.employee.user?.email) {
+      const approver = await prisma.user.findUnique({ where: { id: session.user.id } })
+      await sendEmail({
+        to: request.employee.user.email,
+        subject: "Leave Request Rejected",
+        html: getLeaveRejectionEmailTemplate({
+          employeeName: `${request.employee.firstName} ${request.employee.lastName}`,
+          leaveType: request.policy.name,
+          startDate: new Date(request.startDate).toLocaleDateString(),
+          endDate: new Date(request.endDate).toLocaleDateString(),
+          approverName: approver?.email ?? "HR",
+          reason: comment,
+        }),
+      })
+      // Send SMS to employee if phone number exists
+      if (request.employee.phone) {
+        await sendSMS({
+          to: request.employee.phone,
+          text: getLeaveRejectionSMSTemplate({
+            leaveType: request.policy.name,
+            startDate: new Date(request.startDate).toLocaleDateString(),
+            endDate: new Date(request.endDate).toLocaleDateString(),
+          }),
+        })
+      }
+    }
 
     await prisma.auditLog.create({
       data: {
