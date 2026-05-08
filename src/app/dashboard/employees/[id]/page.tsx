@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { getEmployee } from "@/lib/actions/employees"
+import { DocumentUploadForm } from "@/components/documents/document-upload-form"
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   ACTIVE: "default",
@@ -133,23 +134,7 @@ export default async function EmployeeProfilePage({
             <CardDescription>{employee.documents.length} document{employee.documents.length !== 1 ? "s" : ""}</CardDescription>
           </CardHeader>
           <CardContent>
-            {employee.documents.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No documents uploaded</p>
-            ) : (
-              <div className="space-y-2">
-                {employee.documents.map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between p-2 border rounded text-sm">
-                    <div>
-                      <p className="font-medium">{doc.fileName}</p>
-                      <p className="text-xs text-muted-foreground">{doc.documentType}</p>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(doc.uploadedAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
+            <DocumentUploadForm employeeId={employee.id} existingDocuments={employee.documents} />
           </CardContent>
         </Card>
 
