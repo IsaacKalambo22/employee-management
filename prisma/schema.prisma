@@ -41,6 +41,7 @@ model Employee {
   leaveBalances LeaveBalance[]
   leaveRequests LeaveRequest[]
   requisitions  Requisition[]
+  attendance    Attendance[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -204,6 +205,25 @@ model LPO {
   updatedAt       DateTime    @updatedAt
 }
 
+// Attendance Models
+model Attendance {
+  id          String             @id @default(uuid())
+  employeeId  String
+  employee    Employee           @relation(fields: [employeeId], references: [id])
+  date        DateTime
+  clockIn     DateTime?
+  clockOut    DateTime?
+  status      AttendanceStatus  @default(ABSENT)
+  isLate      Boolean           @default(false)
+  notes       String?
+  isManual    Boolean           @default(false)
+  correctedBy String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@unique([employeeId, date])
+}
+
 // Audit and Workflow Models
 model AuditLog {
   id          String   @id @default(uuid())
@@ -253,4 +273,12 @@ enum RequisitionStatus {
   APPROVED
   REJECTED
   CANCELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EARLY_DEPARTURE
+  HALF_DAY
 }
