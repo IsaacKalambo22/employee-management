@@ -42,6 +42,9 @@ model Employee {
   leaveRequests LeaveRequest[]
   requisitions  Requisition[]
   attendance    Attendance[]
+  salary        Salary?
+  payslips      Payslip[]
+  deductions    Deduction[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -224,6 +227,67 @@ model Attendance {
   @@unique([employeeId, date])
 }
 
+// Payroll Models
+model Salary {
+  id          String   @id @default(uuid())
+  employeeId  String   @unique
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  baseSalary  Decimal
+  allowance   Decimal  @default(0)
+  bonus       Decimal  @default(0)
+  deductions  Decimal  @default(0)
+  effectiveDate DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Payroll {
+  id          String        @id @default(uuid())
+  period      String        // e.g., "2024-01"
+  startDate   DateTime
+  endDate     DateTime
+  status      PayrollStatus @default(PENDING)
+  processedAt DateTime?
+  processedBy String?
+  payslips    Payslip[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([period])
+}
+
+model Payslip {
+  id          String   @id @default(uuid())
+  payrollId   String
+  payroll     Payroll  @relation(fields: [payrollId], references: [id])
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  baseSalary  Decimal
+  allowance   Decimal  @default(0)
+  bonus       Decimal  @default(0)
+  grossPay    Decimal
+  tax         Decimal  @default(0)
+  otherDeductions Decimal @default(0)
+  netPay      Decimal
+  payDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Deduction {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  type        String   // e.g., "TAX", "INSURANCE", "LOAN"
+  amount      Decimal
+  description String?
+  isRecurring Boolean  @default(false)
+  startDate   DateTime
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 // Audit and Workflow Models
 model AuditLog {
   id          String   @id @default(uuid())
@@ -281,4 +345,12 @@ enum AttendanceStatus {
   LATE
   EARLY_DEPARTURE
   HALF_DAY
+}
+
+enum PayrollStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  PAID
+  CANCELLED
 }
