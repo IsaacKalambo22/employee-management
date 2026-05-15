@@ -28,7 +28,7 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <div className="flex flex-col w-64 bg-white shadow-lg border-r border-gray-200">
+    <div className="flex flex-col w-64 h-full bg-white shadow-lg border-r border-gray-200">
       <div className="flex items-center justify-center h-16 border-b border-gray-200">
         <h1 className="text-xl font-bold text-gray-900">HR System</h1>
       </div>
