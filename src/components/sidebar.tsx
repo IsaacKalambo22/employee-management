@@ -28,9 +28,9 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <div className="flex flex-col w-64 h-full bg-white shadow-lg border-r border-gray-200">
-      <div className="flex items-center justify-center h-16 border-b border-gray-200">
-        <h1 className="text-xl font-bold text-gray-900">HR System</h1>
+    <div className="flex flex-col w-64 h-full bg-gradient-to-b from-slate-50 to-slate-100 shadow-lg border-r border-slate-200">
+      <div className="flex items-center justify-center h-16 border-b border-slate-200 bg-gradient-to-r from-blue-600 to-purple-600">
+        <h1 className="text-xl font-bold text-white">HR System</h1>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navigation.map((item) => {
@@ -43,8 +43,8 @@ export function Sidebar() {
                 variant={isActive ? "secondary" : "ghost"}
                 className={cn(
                   "w-full justify-start h-10 px-3",
-                  isActive && "bg-gray-100 text-gray-900",
-                  !isActive && "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                  isActive && "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md",
+                  !isActive && "text-slate-700 hover:text-blue-600 hover:bg-blue-50"
                 )}
               >
                 <item.icon className="mr-3 h-4 w-4" />
