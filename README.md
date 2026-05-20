@@ -107,7 +107,7 @@ npm run test:e2e
 
 ## 📊 Default Users
 
-After seeding, you can log in with these credentials:
+After seeding, you can log in with these test credentials:
 
 | Role | Email | Password |
 |------|-------|----------|
@@ -115,6 +115,8 @@ After seeding, you can log in with these credentials:
 | HR_ADMIN | john.smith@company.com | password123 |
 | MANAGER | jane.doe@company.com | password123 |
 | EMPLOYEE | mike.johnson@company.com | password123 |
+
+**Note:** These are default test credentials for development only. Change them immediately after first login in production.
 
 ## 🏗️ Project Structure
 

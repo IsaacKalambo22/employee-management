@@ -5,7 +5,7 @@ const vonage = new Vonage({
   apiSecret: process.env.VONAGE_API_SECRET!,
 })
 
-const FROM_NUMBER = process.env.VONAGE_FROM_NUMBER || 'HR System'
+const FROM_NUMBER = process.env.VONAGE_FROM_NUMBER!
 
 interface SMSOptions {
   to: string
