@@ -6,22 +6,26 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import bcrypt from "bcryptjs"
 
 const EmployeeSchema = z.object({
   firstName: z.string().min(2, "First name must be at least 2 characters"),
   lastName: z.string().min(2, "Last name must be at least 2 characters"),
-  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  email: z.string().email("Invalid email address"),
   phone: z.string().optional().or(z.literal("")),
   departmentId: z.string().optional().or(z.literal("")),
   positionId: z.string().optional().or(z.literal("")),
   hireDate: z.string().min(1, "Hire date is required"),
   status: z.enum(["ACTIVE", "INACTIVE", "TERMINATED", "ON_LEAVE"]).default("ACTIVE"),
+  role: z.enum(["EMPLOYEE", "MANAGER", "HR_ADMIN", "SUPER_ADMIN"]).default("EMPLOYEE"),
+  password: z.string().min(6, "Password must be at least 6 characters").optional(),
 })
 
 export type EmployeeFormState = {
   errors?: Record<string, string[]>
   message?: string
   success?: boolean
+  generatedPassword?: string
 }
 
 export async function getEmployees(search?: string, departmentId?: string) {
@@ -91,6 +95,8 @@ export async function createEmployee(
     positionId: formData.get("positionId") as string,
     hireDate: formData.get("hireDate") as string,
     status: formData.get("status") as string,
+    role: formData.get("role") as string,
+    password: formData.get("password") as string,
   }
 
   const parsed = EmployeeSchema.safeParse(raw)
@@ -98,14 +104,18 @@ export async function createEmployee(
     return { errors: parsed.error.flatten().fieldErrors }
   }
 
-  const { firstName, lastName, email, phone, departmentId, positionId, hireDate, status } = parsed.data
+  const { firstName, lastName, email, phone, departmentId, positionId, hireDate, status, role, password } = parsed.data
+
+  // Generate random password if not provided
+  const generatedPassword = password || generateRandomPassword()
+  const hashedPassword = await bcrypt.hash(generatedPassword, 10)
 
   try {
-    await prisma.employee.create({
+    const employee = await prisma.employee.create({
       data: {
         firstName,
         lastName,
-        email: email || null,
+        email,
         phone: phone || null,
         departmentId: departmentId || null,
         positionId: positionId || null,
@@ -114,13 +124,23 @@ export async function createEmployee(
       },
     })
 
+    // Create user account for the employee
+    await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        role,
+        employeeId: employee.id,
+      },
+    })
+
     await prisma.auditLog.create({
       data: {
         actorId: session.user.id,
         action: "CREATE",
         entityType: "Employee",
-        entityId: "new",
-        metadata: { firstName, lastName, email },
+        entityId: employee.id,
+        metadata: { firstName, lastName, email, role },
       },
     })
   } catch (e) {
@@ -128,7 +148,21 @@ export async function createEmployee(
   }
 
   revalidatePath("/dashboard/employees")
-  return { success: true, message: "Employee created successfully" }
+  return { 
+    success: true, 
+    message: "Employee created successfully",
+    generatedPassword: !password ? generatedPassword : undefined,
+  }
+}
+
+function generateRandomPassword(): string {
+  const length = 12
+  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+  let password = ""
+  for (let i = 0; i < length; i++) {
+    password += charset.charAt(Math.floor(Math.random() * charset.length))
+  }
+  return password
 }
 
 export async function updateEmployee(

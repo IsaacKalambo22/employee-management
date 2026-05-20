@@ -38,7 +38,14 @@ export function EmployeeForm({ action, departments, positions, defaultValues, su
 
   useEffect(() => {
     if (state.success) {
-      toast.success(state.message ?? "Saved successfully")
+      if (state.generatedPassword) {
+        toast.success(
+          `Employee created! Generated password: ${state.generatedPassword}`,
+          { duration: 10000 }
+        )
+      } else {
+        toast.success(state.message ?? "Saved successfully")
+      }
       router.push("/dashboard/employees")
     } else if (state.message && !state.errors) {
       toast.error(state.message)
@@ -52,7 +59,7 @@ export function EmployeeForm({ action, departments, positions, defaultValues, su
 
   return (
     <form action={formAction} className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Personal Information</CardTitle>
@@ -85,13 +92,14 @@ export function EmployeeForm({ action, departments, positions, defaultValues, su
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email Address</Label>
+              <Label htmlFor="email">Email Address *</Label>
               <Input
                 id="email"
                 name="email"
                 type="email"
                 defaultValue={defaultValues?.email ?? ""}
                 placeholder="john.smith@company.com"
+                required
               />
               {state.errors?.email && (
                 <p className="text-xs text-red-500">{state.errors.email[0]}</p>
@@ -167,6 +175,41 @@ export function EmployeeForm({ action, departments, positions, defaultValues, su
                 <option value="ON_LEAVE">On Leave</option>
                 <option value="TERMINATED">Terminated</option>
               </select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Login Credentials</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="role">Role</Label>
+              <select
+                id="role"
+                name="role"
+                defaultValue={defaultValues?.status ?? "EMPLOYEE"}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="EMPLOYEE">Employee</option>
+                <option value="MANAGER">Manager</option>
+                <option value="HR_ADMIN">HR Admin</option>
+                <option value="SUPER_ADMIN">Super Admin</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password (optional - leave blank to auto-generate)</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                placeholder="Leave blank to auto-generate a secure password"
+              />
+              {state.errors?.password && (
+                <p className="text-xs text-red-500">{state.errors.password[0]}</p>
+              )}
+              <p className="text-xs text-gray-500">If left blank, a secure 12-character password will be automatically generated and shown after creation.</p>
             </div>
           </CardContent>
         </Card>
