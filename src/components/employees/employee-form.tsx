@@ -2,13 +2,14 @@
 
 import { useActionState } from "react"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 import type { EmployeeFormState } from "@/lib/actions/employees"
+import { Eye, EyeOff } from "lucide-react"
 
 interface Department { id: string; name: string }
 interface Position { id: string; title: string }
@@ -35,6 +36,7 @@ const initialState: EmployeeFormState = {}
 export function EmployeeForm({ action, departments, positions, defaultValues, submitLabel = "Save Employee" }: EmployeeFormProps) {
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(action, initialState)
+  const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
     if (state.success) {
@@ -200,12 +202,24 @@ export function EmployeeForm({ action, departments, positions, defaultValues, su
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password">Password (optional - leave blank to auto-generate)</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="Leave blank to auto-generate a secure password"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Leave blank to auto-generate a secure password"
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
               {state.errors?.password && (
                 <p className="text-xs text-red-500">{state.errors.password[0]}</p>
               )}

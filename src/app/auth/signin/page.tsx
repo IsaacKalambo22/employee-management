@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, CheckCircle2 } from "lucide-react"
+import { toast } from "sonner"
 
 export default function SignInPage() {
   const [email, setEmail] = useState("")
@@ -15,12 +16,14 @@ export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
+    setSuccess(false)
 
     try {
       const result = await signIn("credentials", {
@@ -31,11 +34,17 @@ export default function SignInPage() {
 
       if (result?.error) {
         setError("Invalid credentials")
+        toast.error("Invalid credentials")
       } else {
-        router.push("/dashboard")
+        setSuccess(true)
+        toast.success("Sign in successful! Redirecting...")
+        setTimeout(() => {
+          router.push("/dashboard")
+        }, 1000)
       }
     } catch (error) {
       setError("An error occurred")
+      toast.error("An error occurred during sign in")
     } finally {
       setIsLoading(false)
     }
@@ -96,6 +105,12 @@ export default function SignInPage() {
             </div>
             {error && (
               <div className="text-sm text-red-500 bg-red-50 p-3 rounded-md border border-red-200">{error}</div>
+            )}
+            {success && (
+              <div className="text-sm text-green-600 bg-green-50 p-3 rounded-md border border-green-200 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" />
+                Sign in successful! Redirecting...
+              </div>
             )}
             <Button
               type="submit"

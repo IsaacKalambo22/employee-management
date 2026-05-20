@@ -11,7 +11,6 @@ import { z } from "zod"
 const UpdateProfileSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Invalid email"),
   phone: z.string().optional(),
 })
 
@@ -56,14 +55,6 @@ export async function updateProfile(data: z.infer<typeof UpdateProfileSchema>) {
         },
       })
     }
-
-    // Update user email
-    await prisma.user.update({
-      where: { id: session.user.id },
-      data: {
-        email: validatedData.email,
-      },
-    })
 
     revalidatePath("/dashboard/settings")
     revalidatePath("/dashboard/employee")
