@@ -27,7 +27,7 @@ vi.mock('@/lib/supabase', () => ({
       })),
     },
   },
-  STORAGE_BUCKET: 'employee-management',
+  STORAGE_BUCKET: 'test-bucket',
 }))
 
 describe('Document Actions', () => {

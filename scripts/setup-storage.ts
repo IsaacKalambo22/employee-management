@@ -12,7 +12,12 @@ if (!supabaseUrl || !supabaseServiceKey) {
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-const BUCKET_NAME = process.env.NEXT_PUBLIC_SUPABASE_BUCKET_NAME || 'employee-management'
+const BUCKET_NAME = process.env.NEXT_PUBLIC_SUPABASE_BUCKET_NAME!
+
+if (!BUCKET_NAME) {
+  console.error('Missing NEXT_PUBLIC_SUPABASE_BUCKET_NAME environment variable')
+  process.exit(1)
+}
 
 async function setupStorage() {
   console.log(`Setting up Supabase storage bucket: ${BUCKET_NAME}`)
