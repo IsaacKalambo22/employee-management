@@ -4,12 +4,13 @@ import { signOut, useSession } from "next-auth/react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
-export function Header() {
+export function Header({ children }: { children?: React.ReactNode }) {
   const { data: session } = useSession()
 
   return (
     <header className="flex items-center justify-between h-16 px-4 lg:px-6 bg-white border-b border-gray-200">
       <div className="flex items-center space-x-2 lg:space-x-4">
+        {children}
         <h2 className="text-sm lg:text-lg font-semibold text-gray-900 truncate">
           Welcome back, {session?.user?.email}
         </h2>
