@@ -118,6 +118,55 @@ After seeding, you can log in with these test credentials:
 
 **Note:** These are default test credentials for development only. Change them immediately after first login in production.
 
+## 🚀 Production Deployment (Vercel)
+
+### 1. Set Environment Variables in Vercel
+
+Go to your Vercel project → Settings → Environment Variables and add:
+
+- `DATABASE_URL`: Your Neon database connection string
+- `NEXTAUTH_SECRET`: Generate a secure random string
+- `NEXTAUTH_URL`: Your Vercel domain (e.g., `https://your-project.vercel.app`)
+- `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anon key
+- `NEXT_PUBLIC_BUCKET_NAME`: Your storage bucket name
+- (Optional) SMTP and VONAGE variables for email/SMS
+
+### 2. Seed the Production Database
+
+**Important:** The default users don't exist in production until you seed the database.
+
+Run the seed script with your production environment variables:
+
+```bash
+# Set your production DATABASE_URL
+export DATABASE_URL="your-neon-database-url"
+
+# Run the seed
+npm run seed:prod
+```
+
+Or use Vercel CLI:
+
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Pull environment variables
+vercel env pull .env.production
+
+# Run seed
+npm run seed:prod
+```
+
+### 3. Deploy to Vercel
+
+```bash
+vercel --prod
+```
+
+After deployment, you can log in with the default credentials listed above.
+
 ## 🏗️ Project Structure
 
 ```

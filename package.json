@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "node prisma/seed.mjs",
+    "seed:prod": "node prisma/seed.mjs",
     "postinstall": "prisma generate",
     "test": "vitest",
     "test:ui": "vitest --ui",
