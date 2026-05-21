@@ -4,24 +4,6 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "regions": ["iad1"],
-  "env": {
-    "DATABASE_URL": "@database-url",
-    "NEXT_PUBLIC_SUPABASE_URL": "@supabase-url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase-anon-key",
-    "NEXT_PUBLIC_BUCKET_NAME": "@supabase-bucket-name",
-    "SMTP_HOST": "@smtp-host",
-    "SMTP_PORT": "@smtp-port",
-    "SMTP_SECURE": "@smtp-secure",
-    "SMTP_USER": "@smtp-user",
-    "SMTP_PASS": "@smtp-pass",
-    "SMTP_FROM": "@smtp-from",
-    "VONAGE_API_KEY": "@vonage-api-key",
-    "VONAGE_API_SECRET": "@vonage-api-secret",
-    "VONAGE_FROM_NUMBER": "@vonage-from-number",
-    "NEXTAUTH_SECRET": "@nextauth-secret",
-    "NEXTAUTH_URL": "@nextauth-url",
-    "SENTRY_AUTH_TOKEN": "@sentry-auth-token"
-  },
   "headers": [
     {
       "source": "/(.*)",
