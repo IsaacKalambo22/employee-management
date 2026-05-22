@@ -2,7 +2,7 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Calendar, CheckCircle, Clock, XCircle } from "lucide-react"
+import { Plus, Calendar, CheckCircle, Clock, XCircle, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
@@ -47,12 +47,22 @@ export default async function LeavePage() {
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Leave Management</h1>
           <p className="text-gray-600 text-sm mt-1">Manage leave requests and approvals</p>
         </div>
-        {employeeId && (
-          <Link href="/dashboard/leave/new" className={cn(buttonVariants({ size: "sm" }), "inline-flex items-center")}>
-            <Plus className="mr-2 h-4 w-4" />
-            Apply for Leave
+        <div className="flex items-center gap-2">
+          <Link href="/api/export/leave/pdf" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+            <Download className="mr-2 h-4 w-4" />
+            Export PDF
           </Link>
-        )}
+          <Link href="/api/export/leave/excel" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+            <Download className="mr-2 h-4 w-4" />
+            Export Excel
+          </Link>
+          {employeeId && (
+            <Link href="/dashboard/leave/new" className={cn(buttonVariants({ size: "sm" }), "inline-flex items-center")}>
+              <Plus className="mr-2 h-4 w-4" />
+              Apply for Leave
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Plus, Users } from "lucide-react"
+import { Plus, Users, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getEmployees, getDepartments } from "@/lib/actions/employees"
 import { EmployeeSearch } from "@/components/employees/employee-search"
@@ -34,10 +34,20 @@ export default async function EmployeesPage({
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Employees</h1>
           <p className="text-gray-600 text-sm mt-1">Manage employee records and information</p>
         </div>
-        <Link href="/dashboard/employees/new" className={cn(buttonVariants({ size: "sm" }), "inline-flex items-center")}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Employee
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/api/export/employees/pdf" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+            <Download className="mr-2 h-4 w-4" />
+            Export PDF
+          </Link>
+          <Link href="/api/export/employees/excel" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+            <Download className="mr-2 h-4 w-4" />
+            Export Excel
+          </Link>
+          <Link href="/dashboard/employees/new" className={cn(buttonVariants({ size: "sm" }), "inline-flex items-center")}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Employee
+          </Link>
+        </div>
       </div>
 
       <EmployeeSearch departments={departments} />

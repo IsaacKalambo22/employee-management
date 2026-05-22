@@ -1,7 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Clock, LogIn, LogOut, Calendar } from "lucide-react"
+import { Clock, LogIn, LogOut, Calendar, Download } from "lucide-react"
+import Link from "next/link"
+import { cn } from "@/lib/utils"
+import { buttonVariants } from "@/components/ui/button"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { clockIn, clockOut, getTodayAttendance, getEmployeeAttendance, getAttendanceReport } from "@/lib/actions/attendance"
@@ -32,9 +35,21 @@ export default async function AttendancePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Attendance</h1>
-        <p className="text-gray-600 text-sm mt-1">Track and manage attendance records</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Attendance</h1>
+          <p className="text-gray-600 text-sm mt-1">Track and manage attendance records</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link href="/api/export/attendance/pdf" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+            <Download className="mr-2 h-4 w-4" />
+            Export PDF
+          </Link>
+          <Link href="/api/export/attendance/excel" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+            <Download className="mr-2 h-4 w-4" />
+            Export Excel
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

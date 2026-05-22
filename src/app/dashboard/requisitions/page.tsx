@@ -2,7 +2,7 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, FileText, CheckCircle, Clock, XCircle } from "lucide-react"
+import { Plus, FileText, CheckCircle, Clock, XCircle, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
@@ -37,12 +37,22 @@ export default async function RequisitionsPage({
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Requisitions</h1>
           <p className="text-gray-600 text-sm mt-1">Submit and track requisition requests</p>
         </div>
-        {session?.user.employeeId && (
-          <Link href="/dashboard/requisitions/new" className={cn(buttonVariants({ size: "sm" }), "inline-flex items-center")}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Requisition
+        <div className="flex items-center gap-2">
+          <Link href="/api/export/requisitions/pdf" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+            <Download className="mr-2 h-4 w-4" />
+            Export PDF
           </Link>
-        )}
+          <Link href="/api/export/requisitions/excel" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+            <Download className="mr-2 h-4 w-4" />
+            Export Excel
+          </Link>
+          {session?.user.employeeId && (
+            <Link href="/dashboard/requisitions/new" className={cn(buttonVariants({ size: "sm" }), "inline-flex items-center")}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Requisition
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
