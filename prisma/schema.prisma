@@ -32,6 +32,10 @@ model Employee {
   positionId    String?
   hireDate      DateTime
   status        EmploymentStatus  @default(ACTIVE)
+  grade         String?           // Employee grade (e.g., "9", "8", "7", etc.)
+  lineManagerId String?           // Direct line manager
+  lineManager   Employee?         @relation("LineManager", fields: [lineManagerId], references: [id])
+  directReports Employee[]        @relation("LineManager")
   user          User?
   department    Department?       @relation(fields: [departmentId], references: [id])
   position      Position?         @relation(fields: [positionId], references: [id])
@@ -56,6 +60,7 @@ model Department {
   managerId   String?
   manager     Employee? @relation("DepartmentManager", fields: [managerId], references: [id])
   employees   Employee[]
+  budgets     DepartmentBudget[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -101,6 +106,7 @@ model LeavePolicy {
   daysPerYear   Int
   carryOver     Boolean  @default(false)
   maxCarryOver  Int      @default(0)
+  grade         String?  // Optional grade-specific policy (e.g., "9", "8", "7-3")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   balances      LeaveBalance[]
@@ -117,6 +123,7 @@ model LeaveBalance {
   allocated     Int
   used          Int         @default(0)
   pending       Int         @default(0)
+  carriedOver   Int         @default(0)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
@@ -134,7 +141,9 @@ model LeaveRequest {
   days          Int
   reason        String?
   status        LeaveStatus   @default(PENDING)
+  workflowInstanceId String?  // Link to workflow instance
   approvals     LeaveApproval[]
+  attachments   LeaveAttachment[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 }
@@ -151,6 +160,15 @@ model LeaveApproval {
   createdAt     DateTime      @default(now())
 }
 
+model LeaveAttachment {
+  id            String       @id @default(uuid())
+  requestId     String
+  request       LeaveRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  fileName      String
+  filePath      String
+  uploadedAt    DateTime     @default(now())
+}
+
 // Requisition Models
 model Requisition {
   id            String             @id @default(uuid())
@@ -162,6 +180,7 @@ model Requisition {
   category      String
   status        RequisitionStatus  @default(PENDING)
   priority      String             @default("NORMAL")
+  workflowInstanceId String?       // Link to workflow instance
   approvals     RequisitionApproval[]
   lpo           LPO?
   createdAt     DateTime           @default(now())
@@ -191,6 +210,20 @@ model Budget {
   department  String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model DepartmentBudget {
+  id              String   @id @default(uuid())
+  departmentId    String
+  department      Department @relation(fields: [departmentId], references: [id])
+  category        String
+  allocatedAmount Decimal
+  spentAmount     Decimal  @default(0)
+  fiscalYear      Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([departmentId, category, fiscalYear])
 }
 
 model LPO {
@@ -249,6 +282,8 @@ model Payroll {
   status      PayrollStatus @default(PENDING)
   processedAt DateTime?
   processedBy String?
+  workflowInstanceId String?
+  approvals   PayrollApproval[]
   payslips    Payslip[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -288,6 +323,18 @@ model Deduction {
   updatedAt   DateTime @updatedAt
 }
 
+model PayrollApproval {
+  id          String        @id @default(uuid())
+  payrollId   String
+  payroll     Payroll       @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  approverId  String
+  level       Int
+  status      ApprovalStatus @default(PENDING)
+  comment     String?
+  actedAt     DateTime?
+  createdAt   DateTime      @default(now())
+}
+
 // Audit and Workflow Models
 model AuditLog {
   id          String   @id @default(uuid())
@@ -297,6 +344,84 @@ model AuditLog {
   entityId    String
   metadata    Json?
   createdAt   DateTime @default(now())
+}
+
+// Workflow Engine Models
+model WorkflowTemplate {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  description   String?
+  entityType    String   // e.g., "LEAVE_REQUEST", "REQUISITION", "PAYROLL"
+  isActive      Boolean  @default(true)
+  steps         WorkflowStep[]
+  instances     WorkflowInstance[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model WorkflowStep {
+  id              String   @id @default(uuid())
+  templateId      String
+  template        WorkflowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  order           Int
+  name            String
+  description     String?
+  approverType    ApproverType // e.g., "LINE_MANAGER", "DEPARTMENT_HEAD", "ROLE", "SPECIFIC_USER"
+  approverRole    String?  // e.g., "HR_ADMIN", "FINANCE"
+  approverId      String?  // Specific user ID if approverType is SPECIFIC_USER
+  isOptional      Boolean  @default(false)
+  allowDelegation Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([templateId, order])
+}
+
+model WorkflowInstance {
+  id              String   @id @default(uuid())
+  templateId      String
+  template        WorkflowTemplate @relation(fields: [templateId], references: [id])
+  entityType      String
+  entityId        String
+  currentStep     Int      @default(1)
+  status          WorkflowStatus @default(ACTIVE)
+  initiatedBy     String
+  initiatedAt     DateTime @default(now())
+  completedAt     DateTime?
+  actions         ApprovalAction[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ApprovalAction {
+  id              String   @id @default(uuid())
+  instanceId      String
+  instance        WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  stepId          String
+  approverId      String
+  action          ApprovalActionType // e.g., "APPROVED", "REJECTED", "DELEGATED"
+  comment         String?
+  previousStatus  String?
+  newStatus       String?
+  actedAt         DateTime @default(now())
+  createdAt       DateTime @default(now())
+}
+
+model NotificationQueue {
+  id          String   @id @default(uuid())
+  recipientId String
+  type        NotificationType
+  channel     NotificationChannel // e.g., "EMAIL", "SMS", "IN_APP"
+  subject     String?
+  message     String
+  metadata    Json?
+  status      NotificationStatus @default(PENDING)
+  sentAt      DateTime?
+  error       String?
+  retryCount  Int      @default(0)
+  scheduledFor DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 // Enums
@@ -337,6 +462,12 @@ enum RequisitionStatus {
   APPROVED
   REJECTED
   CANCELLED
+  PENDING_MANAGER_APPROVAL
+  PENDING_DEPARTMENT_APPROVAL
+  PENDING_FINANCE_APPROVAL
+  PENDING_PROCUREMENT
+  PROCESSED
+  COMPLETED
 }
 
 enum AttendanceStatus {
@@ -368,6 +499,54 @@ enum JobType {
   LEAVE_APPROVAL_REMINDER
   REPORT_GENERATION
   DATA_CLEANUP
+}
+
+// Workflow Engine Enums
+enum ApproverType {
+  LINE_MANAGER
+  DEPARTMENT_HEAD
+  ROLE
+  SPECIFIC_USER
+}
+
+enum WorkflowStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  ESCALATED
+}
+
+enum ApprovalActionType {
+  APPROVED
+  REJECTED
+  DELEGATED
+  RETURNED
+}
+
+enum NotificationType {
+  LEAVE_SUBMISSION
+  LEAVE_APPROVAL
+  LEAVE_REJECTION
+  REQUISITION_SUBMISSION
+  REQUISITION_APPROVAL
+  REQUISITION_REJECTION
+  PAYROLL_UPLOADED
+  PAYROLL_APPROVED
+  WORKFLOW_ESCALATION
+  SYSTEM_ALERT
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  RETRYING
 }
 
 model BackgroundJob {

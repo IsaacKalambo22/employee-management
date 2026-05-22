@@ -1,8 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { getEmployeeDashboardAnalytics } from "@/lib/actions/analytics"
 import { prisma } from "@/lib/db"
-import { Calendar, Clock, FileText, User } from "lucide-react"
+import { Calendar, Clock, FileText, User, DollarSign } from "lucide-react"
 import Link from "next/link"
 
 export default async function EmployeeDashboard() {
@@ -13,7 +14,9 @@ export default async function EmployeeDashboard() {
     return <div>Unauthorized</div>
   }
 
-  // Get the current user
+  const analytics = await getEmployeeDashboardAnalytics()
+
+  // Get employee details for profile section
   const user = await prisma.user.findUnique({
     where: { id: userId },
   })
@@ -22,7 +25,6 @@ export default async function EmployeeDashboard() {
     return <div>Employee not found</div>
   }
 
-  // Get employee with all relations
   const employee = await prisma.employee.findUnique({
     where: { id: user.employeeId },
     include: {
@@ -32,19 +34,12 @@ export default async function EmployeeDashboard() {
         },
       },
       position: true,
-      leaveBalances: {
-        where: { year: new Date().getFullYear() },
-        include: { policy: true },
-      },
     },
   })
 
   if (!employee) {
     return <div>Employee not found</div>
   }
-
-  // Calculate total leave balance
-  const totalLeaveBalance = employee.leaveBalances.reduce((sum, balance) => sum + (balance.allocated - balance.used), 0)
 
   // Get today's attendance
   const today = new Date()
@@ -60,39 +55,6 @@ export default async function EmployeeDashboard() {
 
   const attendanceStatus = todayAttendance?.status || "NOT_CLOCKED_IN"
 
-  // Get pending leave requests
-  const pendingLeaveRequests = await prisma.leaveRequest.count({
-    where: {
-      employeeId: employee.id,
-      status: "PENDING",
-    },
-  })
-
-  // Get pending requisitions
-  const pendingRequisitions = await prisma.requisition.count({
-    where: {
-      employeeId: employee.id,
-      status: "PENDING",
-    },
-  })
-
-  const totalPending = pendingLeaveRequests + pendingRequisitions
-
-  // Get recent leave requests
-  const recentLeaveRequests = await prisma.leaveRequest.findMany({
-    where: { employeeId: employee.id },
-    orderBy: { createdAt: "desc" },
-    take: 3,
-  })
-
-  // Get recent payslips
-  const recentPayslips = await prisma.payslip.findMany({
-    where: { employeeId: employee.id },
-    include: { payroll: true },
-    orderBy: { createdAt: "desc" },
-    take: 3,
-  })
-
   return (
     <div className="space-y-6">
       <div>
@@ -107,7 +69,9 @@ export default async function EmployeeDashboard() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalLeaveBalance}</div>
+            <div className="text-2xl font-bold">
+              {analytics.leaveBalances.reduce((sum, lb) => sum + lb.remaining, 0)}
+            </div>
             <p className="text-xs text-muted-foreground">
               Days remaining
             </p>
@@ -131,13 +95,13 @@ export default async function EmployeeDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Attendance This Month</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalPending}</div>
+            <div className="text-2xl font-bold">{analytics.attendance.presentDays}</div>
             <p className="text-xs text-muted-foreground">
-              Awaiting approval
+              {analytics.attendance.lateDays} late days
             </p>
           </CardContent>
         </Card>
@@ -228,15 +192,15 @@ export default async function EmployeeDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {employee.leaveBalances.length > 0 ? (
-                employee.leaveBalances.map((balance) => (
-                  <div key={balance.id} className="flex items-center justify-between p-3 border rounded-lg">
+              {analytics.leaveBalances.length > 0 ? (
+                analytics.leaveBalances.map((balance) => (
+                  <div key={balance.policy} className="flex items-center justify-between p-3 border rounded-lg">
                     <div>
-                      <p className="text-sm font-medium">{balance.policy.name}</p>
-                      <p className="text-xs text-muted-foreground">Year: {balance.year}</p>
+                      <p className="text-sm font-medium">{balance.policy}</p>
+                      <p className="text-xs text-muted-foreground">Allocated: {balance.allocated} days</p>
                     </div>
                     <div className="text-sm">
-                      <span className="font-medium">{balance.allocated - balance.used}</span>
+                      <span className="font-medium">{balance.remaining}</span>
                       <span className="text-muted-foreground"> / {balance.allocated}</span>
                     </div>
                   </div>
@@ -255,12 +219,12 @@ export default async function EmployeeDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentPayslips.length > 0 ? (
-                recentPayslips.map((payslip) => (
+              {analytics.recentPayslips.length > 0 ? (
+                analytics.recentPayslips.map((payslip) => (
                   <div key={payslip.id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div>
                       <p className="text-sm font-medium">{payslip.payroll.period}</p>
-                      <p className="text-xs text-muted-foreground">{payslip.createdAt.toDateString()}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(payslip.createdAt).toDateString()}</p>
                     </div>
                     <div className="text-sm font-medium">
                       MWK {Number(payslip.netPay).toLocaleString()}
@@ -269,6 +233,60 @@ export default async function EmployeeDashboard() {
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground">No payslips found</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Leave Requests</CardTitle>
+            <CardDescription>Your latest leave requests</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {analytics.recentLeaveRequests.length > 0 ? (
+                analytics.recentLeaveRequests.map((request) => (
+                  <div key={request.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium">{new Date(request.startDate).toLocaleDateString()} - {new Date(request.endDate).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">{request.days} days</p>
+                    </div>
+                    <div className={`text-sm ${request.status === "APPROVED" ? "text-green-600" : request.status === "PENDING" ? "text-yellow-600" : "text-red-600"}`}>
+                      {request.status}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No recent leave requests</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Requisitions</CardTitle>
+            <CardDescription>Your latest requisitions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {analytics.recentRequisitions.length > 0 ? (
+                analytics.recentRequisitions.map((req) => (
+                  <div key={req.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium">{req.title}</p>
+                      <p className="text-xs text-muted-foreground">{req.category}</p>
+                    </div>
+                    <div className={`text-sm ${req.status === "APPROVED" ? "text-green-600" : req.status === "PENDING" ? "text-yellow-600" : "text-red-600"}`}>
+                      {req.status}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No recent requisitions</p>
               )}
             </div>
           </CardContent>

@@ -5,6 +5,8 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { NotificationService } from "@/lib/notifications/notification-service"
+import { AuditLogService } from "@/lib/audit/audit-log"
 
 const SalarySchema = z.object({
   employeeId: z.string().min(1, "Employee is required"),
@@ -230,7 +232,7 @@ export async function processPayroll(period: string, startDate: Date, endDate: D
 
     // Get all employees with salaries
     const salaries = await prisma.salary.findMany({
-      include: { employee: true },
+      include: { employee: { include: { user: true } } },
     })
 
     // Process each employee
@@ -281,15 +283,24 @@ export async function processPayroll(period: string, startDate: Date, endDate: D
       },
     })
 
-    await prisma.auditLog.create({
-      data: {
-        actorId: session.user.id,
-        action: "PROCESS_PAYROLL",
-        entityType: "Payroll",
-        entityId: payroll.id,
-        metadata: { period, employeeCount: salaries.length },
-      },
-    })
+    // Notify all employees that payroll has been processed
+    for (const salary of salaries) {
+      if (salary.employee.user?.id) {
+        await NotificationService.notifyPayrollUploaded(
+          salary.employee.user.id,
+          period
+        )
+      }
+    }
+
+    // Log payroll processing using AuditLogService
+    const totalAmount = salaries.reduce((sum, s) => sum + Number(s.baseSalary) + Number(s.allowance) + Number(s.bonus), 0)
+    await AuditLogService.logPayrollProcessed(
+      payroll.id,
+      period,
+      salaries.length,
+      totalAmount
+    )
   } catch (e) {
     return { message: "Failed to process payroll" }
   }
@@ -334,12 +345,59 @@ export async function getPayslips(employeeId?: string) {
   const session = await getServerSession(authOptions)
   if (!session) throw new Error("Unauthorized")
 
+  // If employeeId is provided, check if user has permission to view other employees' payslips
+  if (employeeId && session.user.employeeId !== employeeId) {
+    const userRole = session.user.role
+    if (userRole !== "SUPER_ADMIN" && userRole !== "HR_ADMIN" && userRole !== "MANAGER") {
+      throw new Error("Unauthorized to view other employees' payslips")
+    }
+  }
+
+  // If no employeeId provided, use the current user's employeeId
+  const targetEmployeeId = employeeId || session.user.employeeId
+
   return prisma.payslip.findMany({
-    where: employeeId ? { employeeId } : {},
+    where: { employeeId: targetEmployeeId },
     include: {
       employee: { select: { firstName: true, lastName: true, department: { select: { name: true } } } },
       payroll: true,
     },
+    orderBy: { createdAt: "desc" },
+  })
+}
+
+// Employee self-service: Get own payslips
+export async function getMyPayslips() {
+  const session = await getServerSession(authOptions)
+  if (!session || !session.user.employeeId) throw new Error("Unauthorized")
+
+  return prisma.payslip.findMany({
+    where: { employeeId: session.user.employeeId },
+    include: {
+      payroll: true,
+    },
+    orderBy: { createdAt: "desc" },
+  })
+}
+
+// Employee self-service: Get own salary history
+export async function getMySalaryHistory() {
+  const session = await getServerSession(authOptions)
+  if (!session || !session.user.employeeId) throw new Error("Unauthorized")
+
+  return prisma.salary.findMany({
+    where: { employeeId: session.user.employeeId },
+    orderBy: { effectiveDate: "desc" },
+  })
+}
+
+// Employee self-service: Get own deductions
+export async function getMyDeductions() {
+  const session = await getServerSession(authOptions)
+  if (!session || !session.user.employeeId) throw new Error("Unauthorized")
+
+  return prisma.deduction.findMany({
+    where: { employeeId: session.user.employeeId },
     orderBy: { createdAt: "desc" },
   })
 }

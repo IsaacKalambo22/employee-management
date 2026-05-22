@@ -7,6 +7,9 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { sendEmail, getLeaveApprovalEmailTemplate, getLeaveRejectionEmailTemplate, getLeaveRequestEmailTemplate } from "@/lib/email"
 import { sendSMS, getLeaveApprovalSMSTemplate, getLeaveRejectionSMSTemplate, getLeaveRequestSMSTemplate } from "@/lib/sms"
+import { LeaveEntitlementService } from "@/lib/workflow/leave-entitlement"
+import { NotificationService } from "@/lib/notifications/notification-service"
+import { AuditLogService } from "@/lib/audit/audit-log"
 
 const LeaveRequestSchema = z.object({
   policyId: z.string().min(1, "Policy is required"),
@@ -26,10 +29,16 @@ export async function getLeaveBalances(employeeId: string) {
   if (!session) throw new Error("Unauthorized")
 
   const currentYear = new Date().getFullYear()
-  return prisma.leaveBalance.findMany({
+  const balances = await prisma.leaveBalance.findMany({
     where: { employeeId, year: currentYear },
     include: { policy: true },
   })
+
+  // Calculate remaining days for each balance
+  return balances.map((balance) => ({
+    ...balance,
+    remaining: balance.allocated - balance.used - balance.pending,
+  }))
 }
 
 export async function getLeaveRequests(employeeId?: string, status?: string) {
@@ -97,13 +106,23 @@ export async function createLeaveRequest(
 
   const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
 
-  const balance = await prisma.leaveBalance.findFirst({
-    where: { employeeId: session.user.employeeId, policyId, year: new Date().getFullYear() },
-  })
+  // Use LeaveEntitlementService to check balance
+  const hasSufficientBalance = await LeaveEntitlementService.hasSufficientBalance(
+    session.user.employeeId,
+    policyId,
+    days,
+    new Date().getFullYear()
+  )
 
-  if (!balance) return { message: "No leave balance found for this policy" }
-  const available = balance.allocated - balance.used - balance.pending
-  if (days > available) return { message: `Insufficient balance. Available: ${available} days, Requested: ${days} days` }
+  if (!hasSufficientBalance) {
+    const balance = await LeaveEntitlementService.getOrCreateLeaveBalance(
+      session.user.employeeId,
+      policyId,
+      new Date().getFullYear()
+    )
+    const available = balance.allocated - balance.used - balance.pending
+    return { message: `Insufficient balance. Available: ${available} days, Requested: ${days} days` }
+  }
 
   try {
     const employee = await prisma.employee.findUnique({
@@ -122,6 +141,12 @@ export async function createLeaveRequest(
       },
     })
 
+    // Update pending balance
+    const balance = await LeaveEntitlementService.getOrCreateLeaveBalance(
+      session.user.employeeId,
+      policyId,
+      new Date().getFullYear()
+    )
     await prisma.leaveBalance.update({
       where: { id: balance.id },
       data: { pending: { increment: days } },
@@ -134,43 +159,29 @@ export async function createLeaveRequest(
       ],
     })
 
-    await prisma.auditLog.create({
-      data: {
-        actorId: session.user.id,
-        action: "CREATE",
-        entityType: "LeaveRequest",
-        entityId: request.id,
-        metadata: { days, policyId },
-      },
-    })
+    // Log leave request creation using AuditLogService
+    await AuditLogService.logLeaveRequestCreated(
+      request.id,
+      session.user.employeeId,
+      (await prisma.leavePolicy.findUnique({ where: { id: policyId } }))?.name || "Unknown",
+      start,
+      end,
+      days
+    )
 
-    // Send email notification to manager/approver
-    const policy = await prisma.leavePolicy.findUnique({ where: { id: policyId } })
-    if (employee?.department?.manager?.user?.email && policy) {
-      await sendEmail({
-        to: employee.department.manager.user.email,
-        subject: "New Leave Request for Approval",
-        html: getLeaveRequestEmailTemplate({
-          approverName: employee.department.manager.user.email,
-          employeeName: `${employee.firstName} ${employee.lastName}`,
-          leaveType: policy.name,
+    // Send notification to line manager using NotificationService
+    if (employee?.lineManagerId) {
+      await NotificationService.notifyLeaveSubmission(
+        employee.lineManagerId,
+        `${employee.firstName} ${employee.lastName}`,
+        {
+          leaveType: (await prisma.leavePolicy.findUnique({ where: { id: policyId } }))?.name,
           startDate: start.toLocaleDateString(),
           endDate: end.toLocaleDateString(),
+          days,
           reason,
-        }),
-      })
-      // Send SMS to manager if phone number exists
-      if (employee.department.manager.phone) {
-        await sendSMS({
-          to: employee.department.manager.phone,
-          text: getLeaveRequestSMSTemplate({
-            employeeName: `${employee.firstName} ${employee.lastName}`,
-            leaveType: policy.name,
-            startDate: start.toLocaleDateString(),
-            endDate: end.toLocaleDateString(),
-          }),
-        })
-      }
+        }
+      )
     }
   } catch (e) {
     return { message: "Failed to create leave request" }
@@ -206,41 +217,23 @@ export async function approveLeave(requestId: string, level: number): Promise<Le
         where: { id: requestId },
         data: { status: "APPROVED" },
       })
-      const balance = await prisma.leaveBalance.findFirst({
-        where: { employeeId: request.employeeId, policyId: request.policyId, year: new Date().getFullYear() },
-      })
-      if (balance) {
-        await prisma.leaveBalance.update({
-          where: { id: balance.id },
-          data: { pending: { decrement: request.days }, used: { increment: request.days } },
-        })
-      }
+      
+      // Use LeaveEntitlementService to update balance
+      await LeaveEntitlementService.updateBalanceOnApproval(requestId)
 
-      // Send approval email to employee
-      if (request.employee.user?.email) {
+      // Send approval notification to employee
+      if (request.employee.user?.id) {
         const approver = await prisma.user.findUnique({ where: { id: session.user.id } })
-        await sendEmail({
-          to: request.employee.user.email,
-          subject: "Leave Request Approved",
-          html: getLeaveApprovalEmailTemplate({
-            employeeName: `${request.employee.firstName} ${request.employee.lastName}`,
+        await NotificationService.notifyLeaveApproval(
+          request.employee.user.id,
+          approver?.email ?? "HR",
+          {
             leaveType: request.policy.name,
             startDate: new Date(request.startDate).toLocaleDateString(),
             endDate: new Date(request.endDate).toLocaleDateString(),
-            approverName: approver?.email ?? "HR",
-          }),
-        })
-        // Send SMS to employee if phone number exists
-        if (request.employee.phone) {
-          await sendSMS({
-            to: request.employee.phone,
-            text: getLeaveApprovalSMSTemplate({
-              leaveType: request.policy.name,
-              startDate: new Date(request.startDate).toLocaleDateString(),
-              endDate: new Date(request.endDate).toLocaleDateString(),
-            }),
-          })
-        }
+            days: request.days,
+          }
+        )
       }
     } else {
       await prisma.leaveRequest.update({
@@ -249,15 +242,12 @@ export async function approveLeave(requestId: string, level: number): Promise<Le
       })
     }
 
-    await prisma.auditLog.create({
-      data: {
-        actorId: session.user.id,
-        action: "APPROVE",
-        entityType: "LeaveRequest",
-        entityId: requestId,
-        metadata: { level },
-      },
-    })
+    // Log leave approval using AuditLogService
+    await AuditLogService.logLeaveRequestApproved(
+      requestId,
+      session.user.id,
+      `Approved at level ${level}`
+    )
   } catch (e) {
     return { message: "Failed to approve request" }
   }
@@ -282,58 +272,30 @@ export async function rejectLeave(requestId: string, comment: string): Promise<L
       data: { status: "REJECTED" },
     })
 
-    const balance = await prisma.leaveBalance.findFirst({
-      where: { employeeId: request.employeeId, policyId: request.policyId, year: new Date().getFullYear() },
-    })
-    if (balance) {
-      await prisma.leaveBalance.update({
-        where: { id: balance.id },
-        data: { pending: { decrement: request.days } },
-      })
-    }
+    // Use LeaveEntitlementService to update balance on cancellation
+    await LeaveEntitlementService.updateBalanceOnCancellation(requestId)
 
     await prisma.leaveApproval.updateMany({
       where: { requestId },
       data: { status: "REJECTED", actedAt: new Date(), comment },
     })
 
-    // Send rejection email to employee
-    if (request.employee.user?.email) {
+    // Send rejection notification to employee
+    if (request.employee.user?.id) {
       const approver = await prisma.user.findUnique({ where: { id: session.user.id } })
-      await sendEmail({
-        to: request.employee.user.email,
-        subject: "Leave Request Rejected",
-        html: getLeaveRejectionEmailTemplate({
-          employeeName: `${request.employee.firstName} ${request.employee.lastName}`,
-          leaveType: request.policy.name,
-          startDate: new Date(request.startDate).toLocaleDateString(),
-          endDate: new Date(request.endDate).toLocaleDateString(),
-          approverName: approver?.email ?? "HR",
-          reason: comment,
-        }),
-      })
-      // Send SMS to employee if phone number exists
-      if (request.employee.phone) {
-        await sendSMS({
-          to: request.employee.phone,
-          text: getLeaveRejectionSMSTemplate({
-            leaveType: request.policy.name,
-            startDate: new Date(request.startDate).toLocaleDateString(),
-            endDate: new Date(request.endDate).toLocaleDateString(),
-          }),
-        })
-      }
+      await NotificationService.notifyLeaveRejection(
+        request.employee.user.id,
+        approver?.email ?? "HR",
+        comment || "No reason provided"
+      )
     }
 
-    await prisma.auditLog.create({
-      data: {
-        actorId: session.user.id,
-        action: "REJECT",
-        entityType: "LeaveRequest",
-        entityId: requestId,
-        metadata: { comment },
-      },
-    })
+    // Log leave rejection using AuditLogService
+    await AuditLogService.logLeaveRequestRejected(
+      requestId,
+      session.user.id,
+      comment || "No reason provided"
+    )
   } catch (e) {
     return { message: "Failed to reject request" }
   }
@@ -356,15 +318,8 @@ export async function cancelLeave(requestId: string): Promise<LeaveFormState> {
       data: { status: "CANCELLED" },
     })
 
-    const balance = await prisma.leaveBalance.findFirst({
-      where: { employeeId: request.employeeId, policyId: request.policyId, year: new Date().getFullYear() },
-    })
-    if (balance) {
-      await prisma.leaveBalance.update({
-        where: { id: balance.id },
-        data: { pending: { decrement: request.days } },
-      })
-    }
+    // Use LeaveEntitlementService to update balance on cancellation
+    await LeaveEntitlementService.updateBalanceOnCancellation(requestId)
 
     await prisma.auditLog.create({
       data: {

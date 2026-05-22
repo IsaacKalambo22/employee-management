@@ -1,18 +1,62 @@
 # HR Management System
 
-A comprehensive HR management system built with Next.js 16, featuring employee management, leave management, requisitions, attendance tracking, payroll processing, and more.
+A comprehensive HR management system built with Next.js 16, featuring employee management, leave management, requisitions, attendance tracking, payroll processing, and advanced workflow automation.
 
 ## 🚀 Features
 
-- **Employee Management**: Full CRUD operations with document storage
-- **Leave Management**: Multi-level approval workflow with email/SMS notifications
+### Core HR Modules
+- **Employee Management**: Full CRUD operations with document storage and hierarchy support
+- **Leave Management**: Multi-level approval workflow with grade-based entitlement automation
 - **Requisition System**: Budget-aware requisition processing with LPO generation
 - **Attendance Tracking**: Clock in/out system with late detection
-- **Payroll Processing**: Salary management, deductions, and payslip generation
-- **Role-Based Access**: SUPER_ADMIN, HR_ADMIN, MANAGER, EMPLOYEE roles
-- **Analytics Dashboard**: Role-specific dashboards with charts and reports
-- **Audit Logging**: Complete audit trail for all sensitive actions
-- **Notifications**: Email (SMTP) and SMS (Vonage) integration
+- **Payroll Processing**: Salary management, deductions, and payslip generation with self-service access
+
+### Advanced Workflow Engine
+- **Multi-Level Approvals**: Configurable workflow templates for leave, requisitions, and payroll
+- **Dynamic Approvers**: Support for specific users, roles, line managers, and department heads
+- **Workflow Visualization**: Real-time status tracking with visual progress indicators
+- **Approval Timeline**: Complete audit trail with comments and timestamps
+- **Delegation Support**: Optional approval delegation capability
+
+### Leave Entitlement Automation
+- **Grade-Based Allocation**: Automatic leave allocation based on employee grade
+  - Grade 9-8: 20 days annual leave
+  - Grade 7-3: 32 days annual leave
+- **Carry-Over Calculation**: Automatic calculation of carried-over leave
+- **Balance Management**: Real-time balance updates on approval/rejection
+- **Yearly Initialization**: Automated yearly balance reset and allocation
+
+### Centralized Notification System
+- **Multi-Channel Support**: Email, SMS, and in-app notifications
+- **Queue-Based Processing**: Reliable notification delivery with retry logic
+- **Template System**: Reusable notification templates for common events
+- **Event-Driven**: Automatic notifications on workflow state changes
+
+### Role-Based Access Control
+- **SUPER_ADMIN**: Full system access and configuration
+- **HR_ADMIN**: Employee management, leave approvals, payroll processing
+- **MANAGER**: Team management, leave/requisition approvals
+- **EMPLOYEE**: Self-service access to leave, requisitions, payslips
+- **FINANCE**: Budget management, requisition approvals, payroll oversight
+
+### Analytics & Dashboards
+- **HR Dashboard**: Organization-wide analytics, workflow status, budget overview
+- **Manager Dashboard**: Team analytics, attendance tracking, pending approvals
+- **Employee Dashboard**: Self-service widgets, leave balances, recent activity
+- **Finance Dashboard**: Budget utilization, requisition analytics, payroll summary
+
+### Audit & Compliance
+- **Comprehensive Audit Logging**: All workflow actions, approvals, and state changes
+- **Entity-Level Tracking**: Audit logs linked to specific entities (leave, requisition, payroll)
+- **User Activity Tracking**: Complete user action history
+- **Action-Based Filtering**: Query logs by action type, entity, or user
+
+### Security & Performance
+- **Rate Limiting**: 100 requests/minute per IP
+- **Secure Headers**: HSTS, X-Frame-Options, CSP
+- **CSRF Protection**: Same-site cookie validation
+- **Input Validation**: Zod schema validation
+- **Monitoring**: Sentry integration for error tracking and performance
 
 ## 🛠️ Tech Stack
 
@@ -173,9 +217,35 @@ After deployment, you can log in with the default credentials listed above.
 hr-system/
 ├── src/
 │   ├── app/                 # Next.js App Router pages
+│   │   ├── dashboard/       # Role-specific dashboards
+│   │   │   ├── hr/          # HR dashboard
+│   │   │   ├── manager/     # Manager dashboard
+│   │   │   ├── employee/    # Employee dashboard
+│   │   │   └── finance/     # Finance dashboard
+│   │   ├── leave/           # Leave management pages
+│   │   ├── requisitions/    # Requisition management pages
+│   │   ├── payroll/         # Payroll management pages
+│   │   └── employees/       # Employee management pages
 │   ├── components/          # React components
+│   │   ├── workflow/        # Workflow visualization components
+│   │   │   ├── workflow-status.tsx
+│   │   │   └── workflow-timeline.tsx
+│   │   ├── analytics/       # Analytics chart components
+│   │   ├── ui/              # shadcn/ui components
+│   │   └── ...
 │   ├── lib/                 # Utility functions and configurations
 │   │   ├── actions/         # Server actions
+│   │   │   ├── leaves.ts    # Leave management actions
+│   │   │   ├── requisitions.ts # Requisition actions
+│   │   │   ├── payroll.ts   # Payroll actions
+│   │   │   └── analytics.ts # Analytics functions
+│   │   ├── workflow/        # Workflow engine
+│   │   │   ├── workflow-engine.ts
+│   │   │   └── leave-entitlement.ts
+│   │   ├── notifications/   # Notification service
+│   │   │   └── notification-service.ts
+│   │   ├── audit/           # Audit logging
+│   │   │   └── audit-log.ts
 │   │   ├── auth/            # Authentication configuration
 │   │   ├── db/              # Prisma client
 │   │   ├── email/           # Email templates
@@ -183,7 +253,7 @@ hr-system/
 │   │   └── permissions.ts   # Role-based permissions
 │   └── proxy.ts             # Next.js proxy (middleware replacement)
 ├── prisma/
-│   ├── schema.prisma        # Database schema
+│   ├── schema.prisma        # Database schema with workflow models
 │   └── seed.mjs            # Database seed data
 ├── e2e/                     # Playwright E2E tests
 ├── src/lib/actions/__tests__/ # Vitest unit tests
@@ -196,8 +266,175 @@ hr-system/
 - Secure headers (HSTS, X-Frame-Options, CSP)
 - CSRF protection with same-site cookies
 - Role-based access control
-- Audit logging for sensitive operations
+- Comprehensive audit logging for all workflow actions
 - Input validation with Zod
+
+## 🏛️ Services & Architecture
+
+### Workflow Engine (`src/lib/workflow/workflow-engine.ts`)
+
+The workflow engine provides a flexible, template-based approval system:
+
+```typescript
+// Create a workflow template
+await WorkflowEngine.createTemplate({
+  name: "Leave Approval",
+  entityType: "LEAVE_REQUEST",
+  steps: [
+    { order: 1, name: "Manager Approval", approverType: ApproverType.LINE_MANAGER },
+    { order: 2, name: "HR Approval", approverType: ApproverType.ROLE, approverRole: "HR_ADMIN" }
+  ]
+})
+
+// Initialize workflow for an entity
+const instance = await WorkflowEngine.initializeWorkflow(
+  "LEAVE_REQUEST",
+  leaveRequestId,
+  userId
+)
+
+// Approve a step
+await WorkflowEngine.approveStep(instanceId, approverId, "Approved")
+
+// Reject workflow
+await WorkflowEngine.rejectWorkflow(instanceId, approverId, "Reason")
+```
+
+### Leave Entitlement Service (`src/lib/workflow/leave-entitlement.ts`)
+
+Automates leave balance management based on employee grade:
+
+```typescript
+// Get or create leave balance
+const balance = await LeaveEntitlementService.getOrCreateLeaveBalance(
+  employeeId,
+  policyId,
+  year
+)
+
+// Update balance on approval
+await LeaveEntitlementService.updateBalanceOnApproval(leaveRequestId)
+
+// Update balance on cancellation
+await LeaveEntitlementService.updateBalanceOnCancellation(leaveRequestId)
+
+// Initialize yearly balances
+await LeaveEntitlementService.initializeYearlyBalances(year)
+```
+
+### Notification Service (`src/lib/notifications/notification-service.ts`)
+
+Centralized notification system with multi-channel support:
+
+```typescript
+// Queue a notification
+await NotificationService.queueNotification({
+  recipientId: userId,
+  type: NotificationType.LEAVE_APPROVED,
+  channel: NotificationChannel.EMAIL,
+  subject: "Leave Approved",
+  message: "Your leave request has been approved",
+  metadata: { leaveRequestId }
+})
+
+// Process notification queue
+await NotificationService.processQueue()
+
+// Send leave-specific notifications
+await NotificationService.notifyLeaveSubmission(managerId, employeeName, details)
+await NotificationService.notifyLeaveApproval(employeeId, approverEmail, details)
+await NotificationService.notifyLeaveRejection(employeeId, approverEmail, reason)
+```
+
+### Audit Log Service (`src/lib/audit/audit-log.ts`)
+
+Comprehensive audit logging for compliance and tracking:
+
+```typescript
+// Log workflow actions
+await AuditLogService.logWorkflowInitiated(entityType, entityId, instanceId, templateName)
+await AuditLogService.logWorkflowApproval(entityType, entityId, instanceId, stepName, approverId, comment)
+await AuditLogService.logWorkflowRejection(entityType, entityId, instanceId, stepName, approverId, reason)
+await AuditLogService.logWorkflowCompleted(entityType, entityId, instanceId)
+
+// Log leave actions
+await AuditLogService.logLeaveRequestCreated(leaveRequestId, employeeId, leaveType, startDate, endDate, days)
+await AuditLogService.logLeaveRequestApproved(leaveRequestId, approverId, comment)
+await AuditLogService.logLeaveRequestRejected(leaveRequestId, approverId, reason)
+
+// Log requisition actions
+await AuditLogService.logRequisitionCreated(requisitionId, employeeId, category, amount)
+await AuditLogService.logRequisitionApproved(requisitionId, approverId, stepName, comment)
+
+// Log payroll actions
+await AuditLogService.logPayrollProcessed(payrollId, period, employeeCount, totalAmount)
+
+// Query audit logs
+const logs = await AuditLogService.getEntityAuditLogs("LEAVE_REQUEST", leaveRequestId)
+const userLogs = await AuditLogService.getUserAuditLogs(userId)
+const actionLogs = await AuditLogService.getAuditLogsByAction(AuditAction.WORKFLOW_APPROVED)
+```
+
+### Analytics Service (`src/lib/actions/analytics.ts`)
+
+Role-specific analytics functions for dashboards:
+
+```typescript
+// HR Dashboard
+const hrAnalytics = await getHRDashboardAnalytics()
+// Returns: employee, attendance, leave, requisition, workflow, budget, pendingActions
+
+// Manager Dashboard
+const managerAnalytics = await getManagerDashboardAnalytics()
+// Returns: team, leave, requisition
+
+// Employee Dashboard
+const employeeAnalytics = await getEmployeeDashboardAnalytics()
+// Returns: leaveBalances, attendance, recentLeaveRequests, recentRequisitions, recentPayslips
+
+// Finance Dashboard
+const financeAnalytics = await getFinanceDashboardAnalytics()
+// Returns: budget, requisition, payroll, pendingFinanceApprovals
+```
+
+### UI Components
+
+#### Workflow Status Component (`src/components/workflow/workflow-status.tsx`)
+
+Visualizes workflow progress with step-by-step status indicators:
+
+```typescript
+<WorkflowStatus
+  steps={[
+    { id: "1", name: "Manager Approval", status: "COMPLETED", approver: "John Doe", completedAt: new Date() },
+    { id: "2", name: "HR Approval", status: "IN_PROGRESS", approver: "Jane Smith" },
+    { id: "3", name: "Finance Review", status: "PENDING" }
+  ]}
+  currentStatus="IN_PROGRESS"
+/>
+```
+
+#### Workflow Timeline Component (`src/components/workflow/workflow-timeline.tsx`)
+
+Displays approval history with avatars and comments:
+
+```typescript
+<WorkflowTimeline
+  actions={[
+    {
+      id: "1",
+      action: "APPROVED",
+      approverName: "John Doe",
+      approverEmail: "john@company.com",
+      comments: "Approved as requested",
+      createdAt: new Date(),
+      stepName: "Manager Approval"
+    }
+  ]}
+  entityType="LEAVE_REQUEST"
+  entityId="leave-123"
+/>
+```
 
 ## 📈 Monitoring
 

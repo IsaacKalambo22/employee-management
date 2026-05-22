@@ -5,6 +5,9 @@ import { z } from "zod"
 import { prisma } from "@/lib/db"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { WorkflowEngine } from "@/lib/workflow/workflow-engine"
+import { NotificationService } from "@/lib/notifications/notification-service"
+import { AuditLogService } from "@/lib/audit/audit-log"
 
 const RequisitionSchema = z.object({
   title: z.string().min(2, "Title must be at least 2 characters"),
@@ -68,6 +71,11 @@ export async function createRequisition(
   const { title, description, amount, category } = parsed.data
 
   try {
+    const employee = await prisma.employee.findUnique({
+      where: { id: session.user.employeeId },
+      include: { department: true },
+    })
+
     const requisition = await prisma.requisition.create({
       data: {
         employeeId: session.user.employeeId,
@@ -75,25 +83,57 @@ export async function createRequisition(
         description,
         amount: amount ? parseFloat(amount) : null,
         category,
+        status: "PENDING",
       },
     })
 
-    await prisma.requisitionApproval.createMany({
-      data: [
-        { requisitionId: requisition.id, approverId: "", level: 1, role: "MANAGER", status: "PENDING" },
-        { requisitionId: requisition.id, approverId: "", level: 2, role: "FINANCE", status: "PENDING" },
-      ],
-    })
+    // Initialize workflow for requisition
+    try {
+      const workflowInstance = await WorkflowEngine.initializeWorkflow(
+        "REQUISITION",
+        requisition.id,
+        session.user.id
+      )
 
-    await prisma.auditLog.create({
-      data: {
-        actorId: session.user.id,
-        action: "CREATE",
-        entityType: "Requisition",
-        entityId: requisition.id,
-        metadata: { title, category, amount },
-      },
-    })
+      // Link workflow instance to requisition
+      await prisma.requisition.update({
+        where: { id: requisition.id },
+        data: { workflowInstanceId: workflowInstance.id },
+      })
+
+      // Get current approver and send notification
+      const currentApproverId = await WorkflowEngine.getCurrentApprover(workflowInstance.id)
+      if (currentApproverId) {
+        await NotificationService.notifyRequisitionSubmission(
+          currentApproverId,
+          `${employee?.firstName} ${employee?.lastName}`,
+          {
+            title,
+            category,
+            amount: amount ? parseFloat(amount) : null,
+            department: employee?.department?.name,
+          }
+        )
+      }
+    } catch (workflowError) {
+      // If workflow fails, fall back to legacy approval system
+      console.error("Workflow initialization failed, using legacy system:", workflowError)
+      
+      await prisma.requisitionApproval.createMany({
+        data: [
+          { requisitionId: requisition.id, approverId: "", level: 1, role: "MANAGER", status: "PENDING" },
+          { requisitionId: requisition.id, approverId: "", level: 2, role: "FINANCE", status: "PENDING" },
+        ],
+      })
+    }
+
+    // Log requisition creation using AuditLogService
+    await AuditLogService.logRequisitionCreated(
+      requisition.id,
+      session.user.employeeId,
+      category,
+      amount ? parseFloat(amount) : 0
+    )
   } catch (e) {
     return { message: "Failed to create requisition" }
   }
@@ -107,47 +147,73 @@ export async function approveRequisition(requisitionId: string, level: number): 
   if (!session) return { message: "Unauthorized" }
 
   try {
-    const requisition = await prisma.requisition.findUnique({ where: { id: requisitionId }, include: { approvals: true } })
+    const requisition = await prisma.requisition.findUnique({ 
+      where: { id: requisitionId }, 
+      include: { approvals: true, employee: { include: { user: true } } }
+    })
     if (!requisition) return { message: "Requisition not found" }
 
-    // Finance fund availability check for level 2 (Finance approval)
-    if (level === 2 && requisition.amount) {
-      const currentYear = new Date().getFullYear()
-      const budget = await prisma.budget.findFirst({
-        where: {
-          category: requisition.category,
-          year: currentYear,
-        },
-      })
+    // Check if using workflow engine
+    if (requisition.workflowInstanceId) {
+      // Use workflow engine for approval
+      try {
+        await WorkflowEngine.approveStep(
+          requisition.workflowInstanceId,
+          session.user.id
+        )
 
-      if (!budget) {
-        return { message: `No budget found for category: ${requisition.category}` }
+        // Check if workflow is completed
+        const workflowHistory = await WorkflowEngine.getWorkflowHistory(requisition.workflowInstanceId)
+        if (workflowHistory && workflowHistory.status === "COMPLETED") {
+          await prisma.requisition.update({
+            where: { id: requisitionId },
+            data: { status: "APPROVED" },
+          })
+
+          // Update budget spent amount if requisition has amount
+          if (requisition.amount) {
+            const currentYear = new Date().getFullYear()
+            const budget = await prisma.budget.findFirst({
+              where: {
+                category: requisition.category,
+                year: currentYear,
+              },
+            })
+
+            if (budget) {
+              await prisma.budget.update({
+                where: { id: budget.id },
+                data: { spent: { increment: requisition.amount } },
+              })
+            }
+          }
+
+          // Notify employee of approval
+          if (requisition.employee.user?.id) {
+            await NotificationService.notifyRequisitionApproval(
+              requisition.employee.user.id,
+              session.user.email || "System",
+              {
+                title: requisition.title,
+                category: requisition.category,
+                amount: requisition.amount,
+              }
+            )
+          }
+        } else {
+          // Update status based on current step
+          await prisma.requisition.update({
+            where: { id: requisitionId },
+            data: { status: "PENDING_MANAGER_APPROVAL" },
+          })
+        }
+      } catch (workflowError) {
+        return { message: `Workflow approval failed: ${workflowError instanceof Error ? workflowError.message : 'Unknown error'}` }
       }
-
-      const available = budget.amount.minus(budget.spent)
-      if (available.lt(requisition.amount)) {
-        return { message: `Insufficient funds. Available: ${available}, Required: ${requisition.amount}` }
-      }
-    }
-
-    const approval = requisition.approvals.find((a) => a.level === level)
-    if (!approval) return { message: "Approval level not found" }
-
-    await prisma.requisitionApproval.update({
-      where: { id: approval.id },
-      data: { approverId: session.user.id, status: "APPROVED", actedAt: new Date() },
-    })
-
-    const remainingPending = requisition.approvals.filter((a) => a.status === "PENDING").length - 1
-
-    if (remainingPending === 0) {
-      await prisma.requisition.update({
-        where: { id: requisitionId },
-        data: { status: "APPROVED" },
-      })
-
-      // Update budget spent amount if requisition has amount
-      if (requisition.amount) {
+    } else {
+      // Legacy approval system
+      // Finance fund availability check for level 2 (Finance approval)
+      if (level === 2 && requisition.amount) {
         const currentYear = new Date().getFullYear()
         const budget = await prisma.budget.findFirst({
           where: {
@@ -156,29 +222,77 @@ export async function approveRequisition(requisitionId: string, level: number): 
           },
         })
 
-        if (budget) {
-          await prisma.budget.update({
-            where: { id: budget.id },
-            data: { spent: { increment: requisition.amount } },
-          })
+        if (!budget) {
+          return { message: `No budget found for category: ${requisition.category}` }
+        }
+
+        const available = budget.amount.minus(budget.spent)
+        if (available.lt(requisition.amount)) {
+          return { message: `Insufficient funds. Available: ${available}, Required: ${requisition.amount}` }
         }
       }
-    } else {
-      await prisma.requisition.update({
-        where: { id: requisitionId },
-        data: { status: level === 1 ? "MANAGER_APPROVED" : "FINANCE_APPROVED" },
+
+      const approval = requisition.approvals.find((a) => a.level === level)
+      if (!approval) return { message: "Approval level not found" }
+
+      await prisma.requisitionApproval.update({
+        where: { id: approval.id },
+        data: { approverId: session.user.id, status: "APPROVED", actedAt: new Date() },
       })
+
+      const remainingPending = requisition.approvals.filter((a) => a.status === "PENDING").length - 1
+
+      if (remainingPending === 0) {
+        await prisma.requisition.update({
+          where: { id: requisitionId },
+          data: { status: "APPROVED" },
+        })
+
+        // Update budget spent amount if requisition has amount
+        if (requisition.amount) {
+          const currentYear = new Date().getFullYear()
+          const budget = await prisma.budget.findFirst({
+            where: {
+              category: requisition.category,
+              year: currentYear,
+            },
+          })
+
+          if (budget) {
+            await prisma.budget.update({
+              where: { id: budget.id },
+              data: { spent: { increment: requisition.amount } },
+            })
+          }
+        }
+
+        // Notify employee of approval
+        if (requisition.employee.user?.id) {
+          await NotificationService.notifyRequisitionApproval(
+            requisition.employee.user.id,
+            session.user.email || "System",
+            {
+              title: requisition.title,
+              category: requisition.category,
+              amount: requisition.amount,
+            }
+          )
+        }
+      } else {
+        await prisma.requisition.update({
+          where: { id: requisitionId },
+          data: { status: level === 1 ? "MANAGER_APPROVED" : "FINANCE_APPROVED" },
+        })
+      }
     }
 
-    await prisma.auditLog.create({
-      data: {
-        actorId: session.user.id,
-        action: "APPROVE",
-        entityType: "Requisition",
-        entityId: requisitionId,
-        metadata: { level },
-      },
-    })
+    // Log requisition approval using AuditLogService
+    await AuditLogService.logRequisitionApproved(
+      requisitionId,
+      session.user.id,
+      level === 1 ? "Manager" : "Finance",
+      `Approved at level ${level}`
+    )
   } catch (e) {
     return { message: "Failed to approve requisition" }
   }

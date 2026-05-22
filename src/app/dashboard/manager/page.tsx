@@ -1,8 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/db"
-import { Users, Calendar, FileText, TrendingUp, Clock } from "lucide-react"
+import { getManagerDashboardAnalytics } from "@/lib/actions/analytics"
+import { Users, Calendar, FileText, TrendingUp, Clock, CheckCircle } from "lucide-react"
 
 export default async function ManagerDashboard() {
   const session = await getServerSession(authOptions)
@@ -12,89 +12,7 @@ export default async function ManagerDashboard() {
     return <div>Unauthorized</div>
   }
 
-  // Get the current user with employee and department relations
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: {
-      employee: {
-        include: {
-          department: true,
-        },
-      },
-    },
-  })
-
-  if (!user || !user.employee) {
-    return <div>Employee not found</div>
-  }
-
-  const employee = user.employee
-
-  // Get team members (employees in the same department, excluding the manager)
-  const teamMembers = await prisma.employee.findMany({
-    where: {
-      departmentId: employee.departmentId,
-      id: { not: employee.id },
-      status: "ACTIVE",
-    },
-    include: {
-      department: true,
-      position: true,
-    },
-  })
-
-  // Get pending leave approvals for this manager
-  const pendingLeaveApprovals = await prisma.leaveApproval.count({
-    where: {
-      approverId: userId,
-      status: "PENDING",
-    },
-  })
-
-  // Get pending requisition approvals for this manager
-  const pendingRequisitionApprovals = await prisma.requisitionApproval.count({
-    where: {
-      approverId: userId,
-      status: "PENDING",
-    },
-  })
-
-  const totalPendingApprovals = pendingLeaveApprovals + pendingRequisitionApprovals
-
-  // Get team attendance for today
-  const today = new Date()
-  const startOfDay = new Date(today.setHours(0, 0, 0, 0))
-  const endOfDay = new Date(today.setHours(23, 59, 59, 999))
-
-  const teamAttendance = await prisma.attendance.findMany({
-    where: {
-      employeeId: { in: teamMembers.map((m) => m.id) },
-      date: { gte: startOfDay, lte: endOfDay },
-    },
-  })
-
-  const presentToday = teamAttendance.filter((a: any) => a.status === "PRESENT").length
-  const attendanceRate = teamMembers.length > 0 ? (presentToday / teamMembers.length) * 100 : 0
-
-  // Get recent leave requests from team
-  const recentLeaveRequests = await prisma.leaveRequest.findMany({
-    where: {
-      employeeId: { in: teamMembers.map((m) => m.id) },
-    },
-    include: { employee: true },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-  })
-
-  // Get recent requisitions from team
-  const recentRequisitions = await prisma.requisition.findMany({
-    where: {
-      employeeId: { in: teamMembers.map((m) => m.id) },
-    },
-    include: { employee: true },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-  })
+  const analytics = await getManagerDashboardAnalytics()
 
   return (
     <div className="space-y-6">
@@ -110,7 +28,7 @@ export default async function ManagerDashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{teamMembers.length}</div>
+            <div className="text-2xl font-bold">{analytics.team.teamSize}</div>
             <p className="text-xs text-muted-foreground">
               Direct reports
             </p>
@@ -123,9 +41,9 @@ export default async function ManagerDashboard() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalPendingApprovals}</div>
+            <div className="text-2xl font-bold">{analytics.team.pendingLeaveApprovals + analytics.team.pendingRequisitionApprovals}</div>
             <p className="text-xs text-muted-foreground">
-              Awaiting review
+              {analytics.team.pendingLeaveApprovals} leave, {analytics.team.pendingRequisitionApprovals} requisitions
             </p>
           </CardContent>
         </Card>
@@ -133,60 +51,31 @@ export default async function ManagerDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Team Attendance</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{attendanceRate.toFixed(0)}%</div>
+            <div className="text-2xl font-bold">{analytics.team.presentToday}/{analytics.team.teamSize}</div>
             <p className="text-xs text-muted-foreground">
-              Present today
+              {analytics.team.onLeaveToday} on leave today
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Department</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Leave Requests</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{employee.department?.name || "Not assigned"}</div>
+            <div className="text-2xl font-bold">{analytics.leave.approved}</div>
             <p className="text-xs text-muted-foreground">
-              Your team
+              {analytics.leave.pending} pending this month
             </p>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Team Management</CardTitle>
-            <CardDescription>
-              Manage your team and approvals
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <p className="text-sm font-medium">Leave Approvals ({pendingLeaveApprovals} pending)</p>
-                <p className="text-xs text-muted-foreground">Review and approve leave requests</p>
-              </div>
-              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <p className="text-sm font-medium">Requisition Reviews ({pendingRequisitionApprovals} pending)</p>
-                <p className="text-xs text-muted-foreground">Process team requisitions</p>
-              </div>
-              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <p className="text-sm font-medium">Team Performance</p>
-                <p className="text-xs text-muted-foreground">View team metrics and KPIs</p>
-              </div>
-              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                <p className="text-sm font-medium">Team Schedule</p>
-                <p className="text-xs text-muted-foreground">Manage team work schedules</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader>
             <CardTitle>Team Overview</CardTitle>
@@ -196,14 +85,16 @@ export default async function ManagerDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {teamMembers.length > 0 ? (
-                teamMembers.slice(0, 5).map((member) => (
+              {analytics.team.teamMembers.length > 0 ? (
+                analytics.team.teamMembers.map((member) => (
                   <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div>
-                      <p className="text-sm font-medium">{member.firstName} {member.lastName}</p>
-                      <p className="text-xs text-muted-foreground">{member.position?.title || "Not assigned"}</p>
+                      <p className="text-sm font-medium">{member.name}</p>
+                      <p className="text-xs text-muted-foreground">{member.department}</p>
                     </div>
-                    <div className="text-sm text-green-600">Active</div>
+                    <div className={`text-sm ${member.status === 'ACTIVE' ? 'text-green-600' : 'text-gray-600'}`}>
+                      {member.status}
+                    </div>
                   </div>
                 ))
               ) : (
@@ -212,57 +103,88 @@ export default async function ManagerDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Team Management</CardTitle>
+            <CardDescription>
+              Quick actions for team management
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                <p className="text-sm font-medium">Leave Approvals ({analytics.team.pendingLeaveApprovals} pending)</p>
+                <p className="text-xs text-muted-foreground">Review and approve leave requests</p>
+              </div>
+              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                <p className="text-sm font-medium">Requisition Reviews ({analytics.team.pendingRequisitionApprovals} pending)</p>
+                <p className="text-xs text-muted-foreground">Process team requisitions</p>
+              </div>
+              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                <p className="text-sm font-medium">Team Attendance</p>
+                <p className="text-xs text-muted-foreground">View attendance records</p>
+              </div>
+              <div className="p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                <p className="text-sm font-medium">Team Performance</p>
+                <p className="text-xs text-muted-foreground">View team metrics and KPIs</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Recent Leave Requests</CardTitle>
-            <CardDescription>Latest leave requests from your team</CardDescription>
+            <CardTitle>Leave Analytics</CardTitle>
+            <CardDescription>Leave request statistics for your team</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {recentLeaveRequests.length > 0 ? (
-                recentLeaveRequests.map((request) => (
-                  <div key={request.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="text-sm font-medium">{request.employee.firstName} {request.employee.lastName}</p>
-                      <p className="text-xs text-muted-foreground">{request.startDate.toDateString()} - {request.endDate.toDateString()}</p>
-                    </div>
-                    <div className={`text-sm ${request.status === "APPROVED" ? "text-green-600" : request.status === "PENDING" ? "text-yellow-600" : "text-red-600"}`}>
-                      {request.status}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">No recent leave requests</p>
-              )}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="p-4 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{analytics.leave.approved}</div>
+                <div className="text-sm text-gray-600">Approved</div>
+              </div>
+              <div className="p-4 bg-yellow-50 rounded-lg">
+                <div className="text-2xl font-bold text-yellow-600">{analytics.leave.pending}</div>
+                <div className="text-sm text-gray-600">Pending</div>
+              </div>
+              <div className="p-4 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">{analytics.leave.rejected}</div>
+                <div className="text-sm text-gray-600">Rejected</div>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl font-bold text-gray-600">{analytics.leave.cancelled}</div>
+                <div className="text-sm text-gray-600">Cancelled</div>
+              </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent Requisitions</CardTitle>
-            <CardDescription>Latest requisitions from your team</CardDescription>
+            <CardTitle>Requisition Analytics</CardTitle>
+            <CardDescription>Requisition statistics for your team</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {recentRequisitions.length > 0 ? (
-                recentRequisitions.map((req) => (
-                  <div key={req.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="text-sm font-medium">{req.employee.firstName} {req.employee.lastName}</p>
-                      <p className="text-xs text-muted-foreground">{req.category}</p>
-                    </div>
-                    <div className={`text-sm ${req.status === "APPROVED" ? "text-green-600" : req.status === "PENDING" ? "text-yellow-600" : "text-red-600"}`}>
-                      {req.status}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">No recent requisitions</p>
-              )}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="p-4 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{analytics.requisition.approved}</div>
+                <div className="text-sm text-gray-600">Approved</div>
+              </div>
+              <div className="p-4 bg-yellow-50 rounded-lg">
+                <div className="text-2xl font-bold text-yellow-600">{analytics.requisition.pending}</div>
+                <div className="text-sm text-gray-600">Pending</div>
+              </div>
+              <div className="p-4 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">{analytics.requisition.rejected}</div>
+                <div className="text-sm text-gray-600">Rejected</div>
+              </div>
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{analytics.requisition.totalAmount?.toLocaleString() || 0}</div>
+                <div className="text-sm text-gray-600">Total Amount</div>
+              </div>
             </div>
           </CardContent>
         </Card>
