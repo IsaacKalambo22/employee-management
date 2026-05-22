@@ -25,6 +25,7 @@ interface EmployeeFormProps {
     phone?: string | null
     departmentId?: string | null
     positionId?: string | null
+    grade?: string | null
     hireDate?: Date
     status?: string
   }
@@ -151,6 +152,27 @@ export function EmployeeForm({ action, departments, positions, defaultValues, su
                   <option key={p.id} value={p.id}>{p.title}</option>
                 ))}
               </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="grade">Grade</Label>
+              <select
+                id="grade"
+                name="grade"
+                defaultValue={defaultValues?.grade ?? ""}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">Select grade...</option>
+                <option value="9">Grade 9</option>
+                <option value="8">Grade 8</option>
+                <option value="7">Grade 7</option>
+                <option value="6">Grade 6</option>
+                <option value="5">Grade 5</option>
+                <option value="4">Grade 4</option>
+                <option value="3">Grade 3</option>
+                <option value="2">Grade 2</option>
+                <option value="1">Grade 1</option>
+              </select>
+              <p className="text-xs text-gray-500">Grade determines leave entitlement (Grade 9-8: 20 days, Grade 7-3: 32 days)</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="hireDate">Hire Date *</Label>

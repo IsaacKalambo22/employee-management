@@ -47,6 +47,7 @@ export default async function EditEmployeePage({
           phone: employee.phone,
           departmentId: employee.departmentId,
           positionId: employee.positionId,
+          grade: employee.grade,
           hireDate: employee.hireDate,
           status: employee.status,
         }}
