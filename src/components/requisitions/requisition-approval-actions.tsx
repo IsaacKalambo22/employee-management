@@ -30,6 +30,11 @@ export function RequisitionApprovalActions({ requisitionId, status, currentLevel
 
   const canApprove = status === "PENDING" || status === "MANAGER_APPROVED"
   const canReject = status === "PENDING" || status === "MANAGER_APPROVED" || status === "FINANCE_APPROVED"
+  
+  // Don't show any buttons if already fully approved or rejected
+  if (status === "APPROVED" || status === "REJECTED" || status === "CANCELLED") {
+    return null
+  }
 
   const handleApprove = async () => {
     setIsProcessing(true)

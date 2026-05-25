@@ -129,9 +129,14 @@ export async function getLeaveAnalytics(month?: number, year?: number) {
     },
   })
 
-  const approved = leaveRequests.filter((lr: any) => 
-    lr.status === "APPROVED" || lr.status === "MANAGER_APPROVED" || lr.status === "HR_APPROVED"
-  ).length
+  // Get all approved leave requests for total count (not just this month)
+  const allApprovedLeaveRequests = await prisma.leaveRequest.findMany({
+    where: {
+      status: { in: ["APPROVED", "MANAGER_APPROVED", "HR_APPROVED"] },
+    },
+  })
+
+  const approved = allApprovedLeaveRequests.length
   const pending = leaveRequests.filter((lr: any) => lr.status === "PENDING").length
   const rejected = leaveRequests.filter((lr: any) => lr.status === "REJECTED").length
   const cancelled = leaveRequests.filter((lr: any) => lr.status === "CANCELLED").length
@@ -183,6 +188,13 @@ export async function getRequisitionAnalytics(month?: number, year?: number) {
     },
   })
 
+  // Get all approved requisitions for total amount (not just this month)
+  const allApprovedRequisitions = await prisma.requisition.findMany({
+    where: {
+      status: { in: ["APPROVED", "MANAGER_APPROVED", "FINANCE_APPROVED"] },
+    },
+  })
+
   const approved = requisitions.filter((r: any) => 
     r.status === "APPROVED" || r.status === "MANAGER_APPROVED" || r.status === "FINANCE_APPROVED"
   ).length
@@ -190,9 +202,8 @@ export async function getRequisitionAnalytics(month?: number, year?: number) {
   const rejected = requisitions.filter((r: any) => r.status === "REJECTED").length
   const cancelled = requisitions.filter((r: any) => r.status === "CANCELLED").length
 
-  // Total amount spent
-  const totalAmount = requisitions
-    .filter((r: any) => r.status === "APPROVED" || r.status === "MANAGER_APPROVED" || r.status === "FINANCE_APPROVED")
+  // Total amount spent (all approved requisitions, not just this month)
+  const totalAmount = allApprovedRequisitions
     .reduce((sum: number, r: any) => sum + (r.estimatedAmount ? Number(r.estimatedAmount) : 0), 0)
 
   // Requisitions by category

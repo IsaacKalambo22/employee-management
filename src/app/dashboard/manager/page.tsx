@@ -2,7 +2,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getManagerDashboardAnalytics } from "@/lib/actions/analytics"
-import { Users, Calendar, FileText, TrendingUp, Clock, CheckCircle } from "lucide-react"
+import { getLeaveRequests } from "@/lib/actions/leaves"
+import { LeaveApprovalActions } from "@/components/leaves/leave-approval-actions"
+import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
+import { Users, Calendar, FileText, TrendingUp, Clock, CheckCircle, Check, X, AlertCircle } from "lucide-react"
 
 export default async function ManagerDashboard() {
   const session = await getServerSession(authOptions)
@@ -12,7 +16,19 @@ export default async function ManagerDashboard() {
     return <div>Unauthorized</div>
   }
 
-  const analytics = await getManagerDashboardAnalytics()
+  const [analytics, leaveRequests] = await Promise.all([
+    getManagerDashboardAnalytics(),
+    getLeaveRequests(),
+  ])
+
+  const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
+    PENDING: { label: "Pending", color: "bg-yellow-100 text-yellow-800", icon: AlertCircle },
+    APPROVED: { label: "Approved", color: "bg-green-100 text-green-800", icon: Check },
+    MANAGER_APPROVED: { label: "Manager Approved", color: "bg-blue-100 text-blue-800", icon: Check },
+    HR_APPROVED: { label: "HR Approved", color: "bg-purple-100 text-purple-800", icon: Check },
+    REJECTED: { label: "Rejected", color: "bg-red-100 text-red-800", icon: X },
+    CANCELLED: { label: "Cancelled", color: "bg-gray-100 text-gray-800", icon: X },
+  }
 
   return (
     <div className="space-y-6">
@@ -158,6 +174,55 @@ export default async function ManagerDashboard() {
                 <div className="text-2xl font-bold text-gray-600">{analytics.leave.cancelled}</div>
                 <div className="text-sm text-gray-600">Cancelled</div>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Pending Leave Requests</CardTitle>
+            <CardDescription>Review and approve leave requests from your team</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {leaveRequests.length > 0 ? (
+                leaveRequests.map((r: any) => {
+                  const config = statusConfig[r.status] || statusConfig.PENDING
+                  const Icon = config.icon
+                  const currentLevel = r.status === "MANAGER_APPROVED" ? 2 : 1
+                  return (
+                    <div key={r.id} className="flex items-center justify-between p-3 border rounded-lg transition-all duration-300 hover:shadow-md">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={cn("p-2 rounded-full transition-all duration-300", config.color)}>
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{r.employee.firstName} {r.employee.lastName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {r.policy.name} • {r.days} day{r.days !== 1 ? "s" : ""}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(r.startDate).toLocaleDateString()} - {new Date(r.endDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className={cn("transition-all duration-300", config.color)}>{config.label}</Badge>
+                        <LeaveApprovalActions 
+                          requestId={r.id} 
+                          status={r.status} 
+                          currentLevel={currentLevel}
+                        />
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-sm font-medium text-muted-foreground">No leave requests</p>
+                  <p className="text-xs text-muted-foreground mt-1">Leave requests will appear here</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
