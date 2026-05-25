@@ -140,7 +140,7 @@ export function RequisitionAnalyticsCards({ analytics }: { analytics: any }) {
       />
       <AnalyticsCard
         title="Total Amount"
-        value={`MWK ${analytics.totalAmount.toLocaleString()}`}
+        value={`MWK ${isNaN(analytics.totalAmount) ? 0 : analytics.totalAmount.toLocaleString()}`}
         icon={<DollarSign className="h-3 w-3" />}
       />
     </div>

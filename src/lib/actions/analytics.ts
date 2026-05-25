@@ -193,7 +193,7 @@ export async function getRequisitionAnalytics(month?: number, year?: number) {
   // Total amount spent
   const totalAmount = requisitions
     .filter((r: any) => r.status === "APPROVED" || r.status === "MANAGER_APPROVED" || r.status === "FINANCE_APPROVED")
-    .reduce((sum: number, r: any) => sum + Number(r.estimatedAmount), 0)
+    .reduce((sum: number, r: any) => sum + (r.estimatedAmount ? Number(r.estimatedAmount) : 0), 0)
 
   // Requisitions by category
   const requisitionsByCategory = await prisma.requisition.groupBy({

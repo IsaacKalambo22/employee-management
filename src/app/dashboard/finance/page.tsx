@@ -127,7 +127,7 @@ export default async function FinanceDashboard() {
                 <div className="text-sm text-gray-600">Rejected</div>
               </div>
               <div className="p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">{analytics.requisition.totalAmount?.toLocaleString() || 0}</div>
+                <div className="text-2xl font-bold text-blue-600">{isNaN(analytics.requisition.totalAmount) ? 0 : (analytics.requisition.totalAmount?.toLocaleString() || 0)}</div>
                 <div className="text-sm text-gray-600">Total Amount</div>
               </div>
             </div>
