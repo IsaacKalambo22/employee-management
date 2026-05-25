@@ -6,8 +6,9 @@ import { Plus, Calendar, CheckCircle, Clock, XCircle, Download } from "lucide-re
 import { cn } from "@/lib/utils"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { getLeaveBalances, getLeaveRequests } from "@/lib/actions/leaves"
+import { getLeaveBalances, getLeaveRequests, approveLeave, rejectLeave } from "@/lib/actions/leaves"
 import { LeaveCalendar } from "@/components/leaves/leave-calendar"
+import { LeaveApprovalActions } from "@/components/leaves/leave-approval-actions"
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   PENDING: { label: "Pending", color: "bg-yellow-100 text-yellow-700", icon: Clock },
@@ -145,6 +146,7 @@ export default async function LeavePage() {
               {requests.map((r: any) => {
                 const config = statusConfig[r.status] || statusConfig.PENDING
                 const Icon = config.icon
+                const currentLevel = r.status === "MANAGER_APPROVED" ? 2 : 1
                 return (
                   <div key={r.id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center gap-3 min-w-0">
@@ -161,7 +163,14 @@ export default async function LeavePage() {
                         </p>
                       </div>
                     </div>
-                    <Badge className={config.color}>{config.label}</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className={config.color}>{config.label}</Badge>
+                      <LeaveApprovalActions 
+                        requestId={r.id} 
+                        status={r.status} 
+                        currentLevel={currentLevel}
+                      />
+                    </div>
                   </div>
                 )
               })}
