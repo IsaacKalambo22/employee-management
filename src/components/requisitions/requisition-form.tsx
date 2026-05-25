@@ -13,13 +13,19 @@ import type { RequisitionFormState } from "@/lib/actions/requisitions"
 
 interface RequisitionFormProps {
   action: (prevState: RequisitionFormState, formData: FormData) => Promise<RequisitionFormState>
+  defaultValues?: {
+    title: string
+    description: string
+    amount: string
+    category: string
+  }
 }
 
 const initialState: RequisitionFormState = {}
 
 const categories = ["Office Supplies", "Equipment", "Travel", "Training", "Software", "Other"]
 
-export function RequisitionForm({ action }: RequisitionFormProps) {
+export function RequisitionForm({ action, defaultValues }: RequisitionFormProps) {
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(action, initialState)
 
@@ -41,7 +47,7 @@ export function RequisitionForm({ action }: RequisitionFormProps) {
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="title">Title *</Label>
-            <Input id="title" name="title" placeholder="e.g., Office Supplies for Q2" required />
+            <Input id="title" name="title" placeholder="e.g., Office Supplies for Q2" required defaultValue={defaultValues?.title} />
             {state.errors?.title && <p className="text-xs text-red-500">{state.errors.title[0]}</p>}
           </div>
           <div className="space-y-1.5">
@@ -50,6 +56,7 @@ export function RequisitionForm({ action }: RequisitionFormProps) {
               id="category"
               name="category"
               required
+              defaultValue={defaultValues?.category}
               className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
             >
               <option value="">Select category...</option>
@@ -59,11 +66,11 @@ export function RequisitionForm({ action }: RequisitionFormProps) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="amount">Estimated Amount (MWK)</Label>
-            <Input id="amount" name="amount" type="number" placeholder="0.00" min="0" step="0.01" />
+            <Input id="amount" name="amount" type="number" placeholder="0.00" min="0" step="0.01" defaultValue={defaultValues?.amount} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="description">Description *</Label>
-            <Textarea id="description" name="description" placeholder="Describe the items or services needed..." rows={4} required />
+            <Textarea id="description" name="description" placeholder="Describe the items or services needed..." rows={4} required defaultValue={defaultValues?.description} />
             {state.errors?.description && <p className="text-xs text-red-500">{state.errors.description[0]}</p>}
           </div>
         </CardContent>

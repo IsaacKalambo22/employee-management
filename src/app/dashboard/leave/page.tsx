@@ -2,13 +2,14 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Calendar, CheckCircle, Clock, XCircle, Download } from "lucide-react"
+import { Plus, Calendar, CheckCircle, Clock, XCircle, Download, Edit2, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { getLeaveBalances, getLeaveRequests, approveLeave, rejectLeave } from "@/lib/actions/leaves"
+import { getLeaveBalances, getLeaveRequests, approveLeave, rejectLeave, deleteLeave } from "@/lib/actions/leaves"
 import { LeaveCalendar } from "@/components/leaves/leave-calendar"
 import { LeaveApprovalActions } from "@/components/leaves/leave-approval-actions"
+import { LeaveRequestActions } from "@/components/leaves/leave-request-actions"
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   PENDING: { label: "Pending", color: "bg-yellow-100 text-yellow-700", icon: Clock },
@@ -169,6 +170,12 @@ export default async function LeavePage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={cn("transition-all duration-300", config.color)}>{config.label}</Badge>
+                      <LeaveRequestActions 
+                        requestId={r.id} 
+                        status={r.status}
+                        employeeId={r.employeeId}
+                        currentUserId={session?.user?.employeeId}
+                      />
                       <LeaveApprovalActions 
                         requestId={r.id} 
                         status={r.status} 

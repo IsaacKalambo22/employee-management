@@ -18,11 +18,17 @@ interface LeaveFormProps {
   action: (prevState: LeaveFormState, formData: FormData) => Promise<LeaveFormState>
   policies: Policy[]
   balances: Balance[]
+  defaultValues?: {
+    policyId: string
+    startDate: string
+    endDate: string
+    reason: string
+  }
 }
 
 const initialState: LeaveFormState = {}
 
-export function LeaveForm({ action, policies, balances }: LeaveFormProps) {
+export function LeaveForm({ action, policies, balances, defaultValues }: LeaveFormProps) {
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(action, initialState)
 
@@ -53,6 +59,7 @@ export function LeaveForm({ action, policies, balances }: LeaveFormProps) {
               id="policyId"
               name="policyId"
               required
+              defaultValue={defaultValues?.policyId}
               className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
             >
               <option value="">Select leave type...</option>
@@ -70,18 +77,18 @@ export function LeaveForm({ action, policies, balances }: LeaveFormProps) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="startDate">Start Date *</Label>
-              <Input id="startDate" name="startDate" type="date" required />
+              <Input id="startDate" name="startDate" type="date" required defaultValue={defaultValues?.startDate} />
               {state.errors?.startDate && <p className="text-xs text-red-500">{state.errors.startDate[0]}</p>}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="endDate">End Date *</Label>
-              <Input id="endDate" name="endDate" type="date" required />
+              <Input id="endDate" name="endDate" type="date" required defaultValue={defaultValues?.endDate} />
               {state.errors?.endDate && <p className="text-xs text-red-500">{state.errors.endDate[0]}</p>}
             </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="reason">Reason (optional)</Label>
-            <Textarea id="reason" name="reason" placeholder="Provide reason for leave..." rows={3} />
+            <Textarea id="reason" name="reason" placeholder="Provide reason for leave..." rows={3} defaultValue={defaultValues?.reason} />
           </div>
         </CardContent>
       </Card>

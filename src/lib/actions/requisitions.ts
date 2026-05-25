@@ -222,13 +222,12 @@ export async function approveRequisition(requisitionId: string, level: number): 
           },
         })
 
-        if (!budget) {
-          return { message: `No budget found for category: ${requisition.category}` }
-        }
-
-        const available = budget.amount.minus(budget.spent)
-        if (available.lt(requisition.amount)) {
-          return { message: `Insufficient funds. Available: ${available}, Required: ${requisition.amount}` }
+        // Only check budget if it exists for this category
+        if (budget) {
+          const available = budget.amount.minus(budget.spent)
+          if (available.lt(requisition.amount)) {
+            return { message: `Insufficient funds. Available: ${available}, Required: ${requisition.amount}` }
+          }
         }
       }
 
@@ -240,7 +239,13 @@ export async function approveRequisition(requisitionId: string, level: number): 
         data: { approverId: session.user.id, status: "APPROVED", actedAt: new Date() },
       })
 
-      const remainingPending = requisition.approvals.filter((a) => a.status === "PENDING").length - 1
+      // Refresh requisition to get updated approvals
+      const updatedRequisition = await prisma.requisition.findUnique({
+        where: { id: requisitionId },
+        include: { approvals: true },
+      })
+
+      const remainingPending = updatedRequisition?.approvals.filter((a) => a.status === "PENDING").length || 0
 
       if (remainingPending === 0) {
         await prisma.requisition.update({
@@ -423,4 +428,96 @@ export async function getLPO(id: string) {
       },
     },
   })
+}
+
+export async function deleteRequisition(requisitionId: string): Promise<RequisitionFormState> {
+  const session = await getServerSession(authOptions)
+  if (!session) return { message: "Unauthorized" }
+
+  try {
+    const requisition = await prisma.requisition.findUnique({ where: { id: requisitionId } })
+    if (!requisition) return { message: "Requisition not found" }
+    if (requisition.status !== "PENDING") return { message: "Can only delete pending requisitions" }
+
+    await prisma.requisition.delete({
+      where: { id: requisitionId },
+    })
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: session.user.id,
+        action: "DELETE",
+        entityType: "Requisition",
+        entityId: requisitionId,
+      },
+    })
+  } catch (e) {
+    return { message: "Failed to delete requisition" }
+  }
+
+  revalidatePath("/dashboard/requisitions")
+  revalidatePath("/dashboard/admin")
+  revalidatePath("/dashboard/hr")
+  revalidatePath("/dashboard/manager")
+  revalidatePath("/dashboard/finance")
+  revalidatePath("/dashboard/employee")
+  return { success: true }
+}
+
+export async function updateRequisition(
+  requisitionId: string,
+  prevState: RequisitionFormState,
+  formData: FormData
+): Promise<RequisitionFormState> {
+  const session = await getServerSession(authOptions)
+  if (!session) return { message: "Unauthorized" }
+
+  try {
+    const requisition = await prisma.requisition.findUnique({ where: { id: requisitionId } })
+    if (!requisition) return { message: "Requisition not found" }
+    if (requisition.status !== "PENDING") return { message: "Can only edit pending requisitions" }
+
+    const raw = {
+      title: formData.get("title") as string,
+      description: formData.get("description") as string,
+      amount: formData.get("amount") as string,
+      category: formData.get("category") as string,
+    }
+
+    const parsed = RequisitionSchema.safeParse(raw)
+    if (!parsed.success) {
+      return { errors: parsed.error.flatten().fieldErrors }
+    }
+
+    const { title, description, amount, category } = parsed.data
+
+    await prisma.requisition.update({
+      where: { id: requisitionId },
+      data: {
+        title,
+        description,
+        amount: amount ? parseFloat(amount) : null,
+        category,
+      },
+    })
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: session.user.id,
+        action: "UPDATE",
+        entityType: "Requisition",
+        entityId: requisitionId,
+      },
+    })
+  } catch (e) {
+    return { message: "Failed to update requisition" }
+  }
+
+  revalidatePath("/dashboard/requisitions")
+  revalidatePath("/dashboard/admin")
+  revalidatePath("/dashboard/hr")
+  revalidatePath("/dashboard/manager")
+  revalidatePath("/dashboard/finance")
+  revalidatePath("/dashboard/employee")
+  return { success: true }
 }

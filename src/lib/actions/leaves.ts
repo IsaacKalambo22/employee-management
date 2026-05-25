@@ -342,5 +342,100 @@ export async function cancelLeave(requestId: string): Promise<LeaveFormState> {
   }
 
   revalidatePath("/dashboard/leave")
+  revalidatePath("/dashboard/admin")
+  revalidatePath("/dashboard/hr")
+  revalidatePath("/dashboard/manager")
+  revalidatePath("/dashboard/employee")
+  return { success: true }
+}
+
+export async function deleteLeave(requestId: string): Promise<LeaveFormState> {
+  const session = await getServerSession(authOptions)
+  if (!session) return { message: "Unauthorized" }
+
+  try {
+    const request = await prisma.leaveRequest.findUnique({ where: { id: requestId } })
+    if (!request) return { message: "Request not found" }
+    if (request.status !== "PENDING") return { message: "Can only delete pending requests" }
+
+    await prisma.leaveRequest.delete({
+      where: { id: requestId },
+    })
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: session.user.id,
+        action: "DELETE",
+        entityType: "LeaveRequest",
+        entityId: requestId,
+      },
+    })
+  } catch (e) {
+    return { message: "Failed to delete request" }
+  }
+
+  revalidatePath("/dashboard/leave")
+  revalidatePath("/dashboard/admin")
+  revalidatePath("/dashboard/hr")
+  revalidatePath("/dashboard/manager")
+  revalidatePath("/dashboard/employee")
+  return { success: true }
+}
+
+export async function updateLeave(
+  requestId: string,
+  prevState: LeaveFormState,
+  formData: FormData
+): Promise<LeaveFormState> {
+  const session = await getServerSession(authOptions)
+  if (!session) return { message: "Unauthorized" }
+
+  try {
+    const request = await prisma.leaveRequest.findUnique({ where: { id: requestId } })
+    if (!request) return { message: "Request not found" }
+    if (request.status !== "PENDING") return { message: "Can only edit pending requests" }
+
+    const startDate = new Date(formData.get("startDate") as string)
+    const endDate = new Date(formData.get("endDate") as string)
+    const policyId = formData.get("policyId") as string
+    const reason = formData.get("reason") as string
+
+    if (startDate > endDate) {
+      return { message: "Start date must be before end date" }
+    }
+
+    const policy = await prisma.leavePolicy.findUnique({ where: { id: policyId } })
+    if (!policy) return { message: "Policy not found" }
+
+    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+
+    await prisma.leaveRequest.update({
+      where: { id: requestId },
+      data: {
+        startDate,
+        endDate,
+        policyId,
+        reason,
+        days,
+      },
+    })
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: session.user.id,
+        action: "UPDATE",
+        entityType: "LeaveRequest",
+        entityId: requestId,
+      },
+    })
+  } catch (e) {
+    return { message: "Failed to update request" }
+  }
+
+  revalidatePath("/dashboard/leave")
+  revalidatePath("/dashboard/admin")
+  revalidatePath("/dashboard/hr")
+  revalidatePath("/dashboard/manager")
+  revalidatePath("/dashboard/employee")
   return { success: true }
 }

@@ -8,6 +8,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getRequisitions, approveRequisition, rejectRequisition } from "@/lib/actions/requisitions"
 import { RequisitionApprovalActions } from "@/components/requisitions/requisition-approval-actions"
+import { RequisitionRequestActions } from "@/components/requisitions/requisition-request-actions"
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   PENDING: { label: "Pending", color: "bg-yellow-100 text-yellow-700", icon: Clock },
@@ -121,6 +122,12 @@ export default async function RequisitionsPage({
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={cn("transition-all duration-300", config.color)}>{config.label}</Badge>
+                      <RequisitionRequestActions 
+                        requisitionId={r.id} 
+                        status={r.status}
+                        employeeId={r.employeeId}
+                        currentUserId={session?.user?.employeeId}
+                      />
                       <RequisitionApprovalActions 
                         requisitionId={r.id} 
                         status={r.status} 
