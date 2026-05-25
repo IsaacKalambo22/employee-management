@@ -129,7 +129,9 @@ export async function getLeaveAnalytics(month?: number, year?: number) {
     },
   })
 
-  const approved = leaveRequests.filter((lr: any) => lr.status === "APPROVED").length
+  const approved = leaveRequests.filter((lr: any) => 
+    lr.status === "APPROVED" || lr.status === "MANAGER_APPROVED" || lr.status === "HR_APPROVED"
+  ).length
   const pending = leaveRequests.filter((lr: any) => lr.status === "PENDING").length
   const rejected = leaveRequests.filter((lr: any) => lr.status === "REJECTED").length
   const cancelled = leaveRequests.filter((lr: any) => lr.status === "CANCELLED").length
@@ -181,14 +183,16 @@ export async function getRequisitionAnalytics(month?: number, year?: number) {
     },
   })
 
-  const approved = requisitions.filter((r: any) => r.status === "APPROVED").length
+  const approved = requisitions.filter((r: any) => 
+    r.status === "APPROVED" || r.status === "MANAGER_APPROVED" || r.status === "FINANCE_APPROVED"
+  ).length
   const pending = requisitions.filter((r: any) => r.status === "PENDING").length
   const rejected = requisitions.filter((r: any) => r.status === "REJECTED").length
   const cancelled = requisitions.filter((r: any) => r.status === "CANCELLED").length
 
   // Total amount spent
   const totalAmount = requisitions
-    .filter((r: any) => r.status === "APPROVED")
+    .filter((r: any) => r.status === "APPROVED" || r.status === "MANAGER_APPROVED" || r.status === "FINANCE_APPROVED")
     .reduce((sum: number, r: any) => sum + Number(r.estimatedAmount), 0)
 
   // Requisitions by category

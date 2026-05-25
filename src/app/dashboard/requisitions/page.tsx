@@ -28,7 +28,9 @@ export default async function RequisitionsPage({
   const requisitions = await getRequisitions(params.status)
 
   const pending = requisitions.filter((r: any) => r.status === "PENDING").length
-  const approved = requisitions.filter((r: any) => r.status === "APPROVED").length
+  const approved = requisitions.filter((r: any) => 
+    r.status === "APPROVED" || r.status === "MANAGER_APPROVED" || r.status === "FINANCE_APPROVED"
+  ).length
   const rejected = requisitions.filter((r: any) => r.status === "REJECTED").length
 
   return (

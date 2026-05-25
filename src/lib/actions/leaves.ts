@@ -256,6 +256,7 @@ export async function approveLeave(requestId: string, level: number): Promise<Le
   revalidatePath("/dashboard/admin")
   revalidatePath("/dashboard/hr")
   revalidatePath("/dashboard/manager")
+  revalidatePath("/dashboard/employee")
   return { success: true }
 }
 
@@ -307,6 +308,7 @@ export async function rejectLeave(requestId: string, comment: string): Promise<L
   revalidatePath("/dashboard/admin")
   revalidatePath("/dashboard/hr")
   revalidatePath("/dashboard/manager")
+  revalidatePath("/dashboard/employee")
   return { success: true }
 }
 

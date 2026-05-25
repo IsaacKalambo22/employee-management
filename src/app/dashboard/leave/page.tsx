@@ -31,6 +31,10 @@ export default async function LeavePage() {
   const totalAvailable = balances.reduce((sum: number, b: any) => sum + (b.allocated - b.used - b.pending), 0)
   const totalUsed = balances.reduce((sum: number, b: any) => sum + b.used, 0)
   const pendingCount = requests.filter((r: any) => r.status === "PENDING").length
+  const approvedCount = requests.filter((r: any) => 
+    r.status === "APPROVED" || r.status === "MANAGER_APPROVED" || r.status === "HR_APPROVED"
+  ).length
+  const rejectedCount = requests.filter((r: any) => r.status === "REJECTED").length
 
   const calendarData = requests.map((r: any) => ({
     id: r.id,
@@ -93,10 +97,10 @@ export default async function LeavePage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs">Total Policies</CardDescription>
+            <CardDescription className="text-xs">Approved Requests</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-gray-600">{balances.length}</p>
+            <p className="text-2xl font-bold text-green-600">{approvedCount}</p>
           </CardContent>
         </Card>
       </div>
