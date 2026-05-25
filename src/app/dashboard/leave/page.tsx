@@ -148,9 +148,9 @@ export default async function LeavePage() {
                 const Icon = config.icon
                 const currentLevel = r.status === "MANAGER_APPROVED" ? 2 : 1
                 return (
-                  <div key={r.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div key={r.id} className="flex items-center justify-between p-3 border rounded-lg transition-all duration-300 hover:shadow-md">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className={cn("p-2 rounded-full", config.color)}>
+                      <div className={cn("p-2 rounded-full transition-all duration-300", config.color)}>
                         <Icon className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
@@ -164,7 +164,7 @@ export default async function LeavePage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge className={config.color}>{config.label}</Badge>
+                      <Badge className={cn("transition-all duration-300", config.color)}>{config.label}</Badge>
                       <LeaveApprovalActions 
                         requestId={r.id} 
                         status={r.status} 

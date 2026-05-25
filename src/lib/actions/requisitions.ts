@@ -298,6 +298,10 @@ export async function approveRequisition(requisitionId: string, level: number): 
   }
 
   revalidatePath("/dashboard/requisitions")
+  revalidatePath("/dashboard/admin")
+  revalidatePath("/dashboard/hr")
+  revalidatePath("/dashboard/manager")
+  revalidatePath("/dashboard/finance")
   return { success: true }
 }
 
@@ -330,6 +334,10 @@ export async function rejectRequisition(requisitionId: string, comment: string):
   }
 
   revalidatePath("/dashboard/requisitions")
+  revalidatePath("/dashboard/admin")
+  revalidatePath("/dashboard/hr")
+  revalidatePath("/dashboard/manager")
+  revalidatePath("/dashboard/finance")
   return { success: true }
 }
 

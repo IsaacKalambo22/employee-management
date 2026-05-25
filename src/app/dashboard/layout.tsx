@@ -8,6 +8,7 @@ import { Header } from "@/components/header"
 import { Breadcrumbs } from "@/components/breadcrumbs"
 import { Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Toaster } from "sonner"
 
 export default function DashboardLayout({
   children,
@@ -75,6 +76,7 @@ export default function DashboardLayout({
           {children}
         </main>
       </div>
+      <Toaster />
     </div>
   )
 }
