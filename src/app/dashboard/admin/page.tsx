@@ -2,7 +2,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { EmployeeAnalyticsCards, AttendanceAnalyticsCards, LeaveAnalyticsCards, RequisitionAnalyticsCards, PayrollAnalyticsCards } from "@/components/analytics/analytics-cards"
 import { getEmployeeAnalytics, getAttendanceAnalytics, getLeaveAnalytics, getRequisitionAnalytics, getPayrollAnalytics } from "@/lib/actions/analytics"
 import { prisma } from "@/lib/db"
-import { Users, Settings, Database, Shield, FileText } from "lucide-react"
+import { Users, Settings, Shield, FileText } from "lucide-react"
+import { SystemTools } from "@/components/admin/system-tools"
 
 export default async function AdminDashboard() {
   const [employeeAnalytics, attendanceAnalytics, leaveAnalytics, requisitionAnalytics, payrollAnalytics] = await Promise.all([
@@ -78,6 +79,8 @@ export default async function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <SystemTools />
 
       <div className="space-y-6">
         <Card>

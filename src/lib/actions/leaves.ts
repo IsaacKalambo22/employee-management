@@ -10,6 +10,7 @@ import { sendSMS, getLeaveApprovalSMSTemplate, getLeaveRejectionSMSTemplate, get
 import { LeaveEntitlementService } from "@/lib/workflow/leave-entitlement"
 import { NotificationService } from "@/lib/notifications/notification-service"
 import { AuditLogService } from "@/lib/audit/audit-log"
+import { requirePermission } from "@/lib/permissions"
 
 const LeaveRequestSchema = z.object({
   policyId: z.string().min(1, "Policy is required"),
@@ -194,6 +195,7 @@ export async function createLeaveRequest(
 export async function approveLeave(requestId: string, level: number): Promise<LeaveFormState> {
   const session = await getServerSession(authOptions)
   if (!session) return { message: "Unauthorized" }
+  try { await requirePermission("APPROVE_LEAVE_REQUEST") } catch { return { message: "Forbidden: only managers or HR can approve leave" } }
 
   try {
     const request = await prisma.leaveRequest.findUnique({
@@ -263,6 +265,7 @@ export async function approveLeave(requestId: string, level: number): Promise<Le
 export async function rejectLeave(requestId: string, comment: string): Promise<LeaveFormState> {
   const session = await getServerSession(authOptions)
   if (!session) return { message: "Unauthorized" }
+  try { await requirePermission("REJECT_LEAVE_REQUEST") } catch { return { message: "Forbidden: only managers or HR can reject leave" } }
 
   try {
     const request = await prisma.leaveRequest.findUnique({

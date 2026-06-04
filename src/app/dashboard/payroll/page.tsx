@@ -11,6 +11,16 @@ import { getPayrolls, getPayslips } from "@/lib/actions/payroll"
 
 export default async function PayrollPage() {
   const session = await getServerSession(authOptions)
+  const role = session?.user?.role
+  if (!role || !["SUPER_ADMIN", "HR_ADMIN"].includes(role)) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <p className="text-lg font-semibold text-gray-700">Access Denied</p>
+        <p className="text-sm text-gray-500 mt-1">You don't have permission to view payroll.</p>
+      </div>
+    )
+  }
+
   const employeeId = session?.user?.employeeId
 
   const [payrolls, payslips] = await Promise.all([

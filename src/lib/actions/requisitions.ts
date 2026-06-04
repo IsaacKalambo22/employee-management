@@ -8,6 +8,7 @@ import { authOptions } from "@/lib/auth"
 import { WorkflowEngine } from "@/lib/workflow/workflow-engine"
 import { NotificationService } from "@/lib/notifications/notification-service"
 import { AuditLogService } from "@/lib/audit/audit-log"
+import { requirePermission } from "@/lib/permissions"
 
 const RequisitionSchema = z.object({
   title: z.string().min(2, "Title must be at least 2 characters"),
@@ -145,6 +146,7 @@ export async function createRequisition(
 export async function approveRequisition(requisitionId: string, level: number): Promise<RequisitionFormState> {
   const session = await getServerSession(authOptions)
   if (!session) return { message: "Unauthorized" }
+  try { await requirePermission("APPROVE_REQUISITION") } catch { return { message: "Forbidden: only managers or HR can approve requisitions" } }
 
   try {
     const requisition = await prisma.requisition.findUnique({ 
@@ -314,6 +316,7 @@ export async function approveRequisition(requisitionId: string, level: number): 
 export async function rejectRequisition(requisitionId: string, comment: string): Promise<RequisitionFormState> {
   const session = await getServerSession(authOptions)
   if (!session) return { message: "Unauthorized" }
+  try { await requirePermission("APPROVE_REQUISITION") } catch { return { message: "Forbidden: only managers or HR can reject requisitions" } }
 
   try {
     await prisma.requisition.update({

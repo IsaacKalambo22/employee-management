@@ -41,9 +41,16 @@ export function LeaveForm({ action, policies, balances, defaultValues }: LeaveFo
     }
   }, [state, router])
 
-  const getAvailableDays = (policyId: string) => {
+  const getBalanceInfo = (policyId: string) => {
     const balance = balances.find((b) => b.policyId === policyId)
-    return balance ? balance.allocated - balance.used - balance.pending : 0
+    if (!balance) {
+      // No balance record yet - employee is newly created or balances not yet seeded.
+      // Show the policy's full days and allow selection.
+      const policy = policies.find((p) => p.id === policyId)
+      return { available: policy?.daysPerYear ?? null, hasRecord: false }
+    }
+    const available = balance.allocated - balance.used - balance.pending
+    return { available, hasRecord: true }
   }
 
   return (
@@ -64,10 +71,15 @@ export function LeaveForm({ action, policies, balances, defaultValues }: LeaveFo
             >
               <option value="">Select leave type...</option>
               {policies.map((p) => {
-                const available = getAvailableDays(p.id)
+                const { available, hasRecord } = getBalanceInfo(p.id)
+                // Only disable if balance record exists AND is fully exhausted
+                const isDisabled = hasRecord && available !== null && available <= 0
+                const label = available === null
+                  ? p.name
+                  : `${p.name} (${available} day${available !== 1 ? "s" : ""} available)`
                 return (
-                  <option key={p.id} value={p.id} disabled={available <= 0}>
-                    {p.name} ({available} days available)
+                  <option key={p.id} value={p.id} disabled={isDisabled}>
+                    {label}
                   </option>
                 )
               })}

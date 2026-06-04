@@ -61,18 +61,28 @@ async function main() {
   console.log('🏖️  Seeding leave policies...')
   const annualLeave = await prisma.leavePolicy.create({ data: { name: 'Annual Leave', description: 'Paid annual leave', daysPerYear: 21, carryOver: true, maxCarryOver: 5 } })
   const sickLeave = await prisma.leavePolicy.create({ data: { name: 'Sick Leave', description: 'Medical sick leave', daysPerYear: 10, carryOver: false } })
-  const maternityLeave = await prisma.leavePolicy.create({ data: { name: 'Maternity Leave', description: 'Maternity/Paternity leave', daysPerYear: 90, carryOver: false } })
+  const maternityLeave = await prisma.leavePolicy.create({ data: { name: 'Maternity Leave', description: 'Paid maternity leave', daysPerYear: 90, carryOver: false } })
+  const paternityLeave = await prisma.leavePolicy.create({ data: { name: 'Paternity Leave', description: 'Paid paternity leave', daysPerYear: 14, carryOver: false } })
+  const compassionateLeave = await prisma.leavePolicy.create({ data: { name: 'Compassionate Leave', description: 'Bereavement and compassionate leave', daysPerYear: 5, carryOver: false } })
+  const studyLeave = await prisma.leavePolicy.create({ data: { name: 'Study Leave', description: 'Leave for examinations and study', daysPerYear: 10, carryOver: false } })
+  const unpaidLeave = await prisma.leavePolicy.create({ data: { name: 'Unpaid Leave', description: 'Unpaid extended leave', daysPerYear: 30, carryOver: false } })
 
   console.log('📅 Seeding leave balances...')
   const allEmployees = [hrManager, itManager, developer, accountant]
   const currentYear = new Date().getFullYear()
+  const allPolicies = [annualLeave, sickLeave, maternityLeave, paternityLeave, compassionateLeave, studyLeave, unpaidLeave]
   for (const emp of allEmployees) {
     await prisma.leaveBalance.createMany({
-      data: [
-        { employeeId: emp.id, policyId: annualLeave.id, year: currentYear, allocated: 21 },
-        { employeeId: emp.id, policyId: sickLeave.id, year: currentYear, allocated: 10 },
-        { employeeId: emp.id, policyId: maternityLeave.id, year: currentYear, allocated: 90 },
-      ],
+      data: allPolicies.map(policy => ({
+        employeeId: emp.id,
+        policyId: policy.id,
+        year: currentYear,
+        allocated: policy.daysPerYear,
+        used: 0,
+        pending: 0,
+        carriedOver: 0,
+      })),
+      skipDuplicates: true,
     })
   }
 

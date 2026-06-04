@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import bcrypt from "bcryptjs"
+import { requirePermission } from "@/lib/permissions"
 
 const EmployeeSchema = z.object({
   firstName: z.string().min(2, "First name must be at least 2 characters"),
@@ -32,6 +33,7 @@ export type EmployeeFormState = {
 export async function getEmployees(search?: string, departmentId?: string) {
   const session = await getServerSession(authOptions)
   if (!session) redirect("/auth/signin")
+  await requirePermission("READ_EMPLOYEES")
 
   return prisma.employee.findMany({
     where: {
@@ -86,6 +88,7 @@ export async function createEmployee(
 ): Promise<EmployeeFormState> {
   const session = await getServerSession(authOptions)
   if (!session) return { message: "Unauthorized" }
+  try { await requirePermission("CREATE_EMPLOYEE") } catch { return { message: "Forbidden: only HR or Admin can create employees" } }
 
   const raw = {
     firstName: formData.get("firstName") as string,
@@ -146,6 +149,24 @@ export async function createEmployee(
         metadata: { firstName, lastName, email, role },
       },
     })
+
+    // Auto-create leave balances for all active policies
+    const currentYear = new Date().getFullYear()
+    const policies = await prisma.leavePolicy.findMany()
+    if (policies.length > 0) {
+      await prisma.leaveBalance.createMany({
+        data: policies.map((policy: { id: string; daysPerYear: number }) => ({
+          employeeId: employee.id,
+          policyId: policy.id,
+          year: currentYear,
+          allocated: policy.daysPerYear,
+          used: 0,
+          pending: 0,
+          carriedOver: 0,
+        })),
+        skipDuplicates: true,
+      })
+    }
   } catch (e) {
     return { message: "Failed to create employee. Email may already exist." }
   }
