@@ -7,9 +7,26 @@ const rateLimit = new Map<string, { count: number; resetTime: number }>()
 const RATE_LIMIT_WINDOW = 60 * 1000 // 1 minute
 const RATE_LIMIT_MAX_REQUESTS = 100
 
+// Route-specific role requirements
+const ROUTE_ROLE_MAP: Record<string, string[]> = {
+  "/dashboard/admin":      ["SUPER_ADMIN"],
+  "/dashboard/hr":         ["SUPER_ADMIN", "HR_ADMIN"],
+  "/dashboard/manager":    ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"],
+  "/dashboard/employees":  ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"],
+  "/dashboard/payroll":    ["SUPER_ADMIN", "HR_ADMIN"],
+  "/dashboard/finance":    ["SUPER_ADMIN", "HR_ADMIN"],
+}
+
+const ROLE_HOME: Record<string, string> = {
+  SUPER_ADMIN: "/dashboard/admin",
+  HR_ADMIN:    "/dashboard/hr",
+  MANAGER:     "/dashboard/manager",
+  EMPLOYEE:    "/dashboard/employee",
+}
+
 function getRateLimitKey(request: NextRequest): string {
-  const ip = request.headers.get('x-forwarded-for') || 
-             request.headers.get('x-real-ip') || 
+  const ip = request.headers.get('x-forwarded-for') ||
+             request.headers.get('x-real-ip') ||
              'unknown'
   return ip
 }
@@ -35,6 +52,7 @@ export default async function proxy(request: NextRequest) {
   const response = NextResponse.next()
   const token = await getToken({ req: request })
   const pathname = request.nextUrl.pathname
+  const role: string = token?.role ?? ""
 
   // Security headers
   response.headers.set('X-DNS-Prefetch-Control', 'on')
@@ -58,19 +76,17 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/auth/signin", request.url))
   }
 
-  // Role-based redirects for root dashboard
+  // Redirect bare /dashboard to role home
   if (pathname === "/dashboard") {
-    switch (token?.role) {
-      case "SUPER_ADMIN":
-        return NextResponse.redirect(new URL("/dashboard/admin", request.url))
-      case "HR_ADMIN":
-        return NextResponse.redirect(new URL("/dashboard/hr", request.url))
-      case "MANAGER":
-        return NextResponse.redirect(new URL("/dashboard/manager", request.url))
-      case "EMPLOYEE":
-        return NextResponse.redirect(new URL("/dashboard/employee", request.url))
-      default:
-        return NextResponse.redirect(new URL("/dashboard/employee", request.url))
+    const home = ROLE_HOME[role] ?? "/dashboard/employee"
+    return NextResponse.redirect(new URL(home, request.url))
+  }
+
+  // Check route-specific role requirements
+  for (const [route, allowedRoles] of Object.entries(ROUTE_ROLE_MAP)) {
+    if (pathname.startsWith(route) && !allowedRoles.includes(role)) {
+      const home = ROLE_HOME[role] ?? "/dashboard/employee"
+      return NextResponse.redirect(new URL(home, request.url))
     }
   }
 
