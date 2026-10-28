@@ -28,8 +28,8 @@ export function RequisitionApprovalActions({ requisitionId, status, currentLevel
   const [rejectComment, setRejectComment] = useState("")
   const router = useRouter()
 
-  const canApprove = status === "PENDING" || status === "MANAGER_APPROVED"
-  const canReject = status === "PENDING" || status === "MANAGER_APPROVED" || status === "FINANCE_APPROVED"
+  const canApprove = status === "PENDING" || status === "MANAGER_APPROVED" || status === "PENDING_FINANCE_APPROVAL"
+  const canReject = status === "PENDING" || status === "MANAGER_APPROVED" || status === "PENDING_FINANCE_APPROVAL" || status === "FINANCE_APPROVED"
   
   // Don't show any buttons if already fully approved or rejected
   if (status === "APPROVED" || status === "REJECTED" || status === "CANCELLED") {

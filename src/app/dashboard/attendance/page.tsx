@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { checkPermission } from "@/lib/permissions"
 import { clockIn, clockOut, getTodayAttendance, getEmployeeAttendance, getAttendanceReport } from "@/lib/actions/attendance"
 import { ClockInForm } from "@/components/attendance/clock-in-form"
 import { ClockOutForm } from "@/components/attendance/clock-out-form"
@@ -41,14 +42,18 @@ export default async function AttendancePage() {
           <p className="text-gray-600 text-sm mt-1">Track and manage attendance records</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/api/export/attendance/pdf" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
-            <Download className="mr-2 h-4 w-4" />
-            Export PDF
-          </Link>
-          <Link href="/api/export/attendance/excel" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
-            <Download className="mr-2 h-4 w-4" />
-            Export Excel
-          </Link>
+          {checkPermission(session?.user?.role, "READ_ATTENDANCE") && (
+            <>
+              <Link href="/api/export/attendance/pdf" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+                <Download className="mr-2 h-4 w-4" />
+                Export PDF
+              </Link>
+              <Link href="/api/export/attendance/excel" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+                <Download className="mr-2 h-4 w-4" />
+                Export Excel
+              </Link>
+            </>
+          )}
         </div>
       </div>
 

@@ -218,6 +218,7 @@ export function EmployeeForm({ action, departments, positions, defaultValues, su
               >
                 <option value="EMPLOYEE">Employee</option>
                 <option value="MANAGER">Manager</option>
+                <option value="FINANCE_OFFICER">Finance Officer</option>
                 <option value="HR_ADMIN">HR Admin</option>
                 <option value="SUPER_ADMIN">Super Admin</option>
               </select>

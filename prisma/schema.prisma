@@ -49,6 +49,8 @@ model Employee {
   salary        Salary?
   payslips      Payslip[]
   deductions    Deduction[]
+  loanApplications LoanApplication[]
+  proposedProjects Project[]       @relation("ProjectProposer")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -61,6 +63,7 @@ model Department {
   manager     Employee? @relation("DepartmentManager", fields: [managerId], references: [id])
   employees   Employee[]
   budgets     DepartmentBudget[]
+  projects    Project[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -181,6 +184,8 @@ model Requisition {
   status        RequisitionStatus  @default(PENDING)
   priority      String             @default("NORMAL")
   workflowInstanceId String?       // Link to workflow instance
+  projectId     String?            // Project budget this spend is charged to
+  project       Project?           @relation(fields: [projectId], references: [id])
   approvals     RequisitionApproval[]
   lpo           LPO?
   createdAt     DateTime           @default(now())
@@ -224,6 +229,33 @@ model DepartmentBudget {
   updatedAt       DateTime @updatedAt
 
   @@unique([departmentId, category, fiscalYear])
+}
+
+// Department projects - approved project budgets make up each department's budget
+model Project {
+  id             String        @id @default(uuid())
+  departmentId   String
+  department     Department    @relation(fields: [departmentId], references: [id])
+  name           String
+  description    String
+  fiscalYear     Int
+  proposedBudget Decimal
+  approvedBudget Decimal?
+  spentAmount    Decimal       @default(0)
+  status         ProjectStatus @default(PENDING_REVIEW)
+  startDate      DateTime?
+  endDate        DateTime?
+  proposedById   String?
+  proposedBy     Employee?     @relation("ProjectProposer", fields: [proposedById], references: [id])
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  reviewComment  String?
+  requisitions   Requisition[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([departmentId, fiscalYear])
+  @@index([status])
 }
 
 model LPO {
@@ -305,8 +337,46 @@ model Payslip {
   otherDeductions Decimal @default(0)
   netPay      Decimal
   payDate     DateTime?
+  items       PayslipItem[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// Itemised earnings and deductions shown on a payslip
+model PayslipItem {
+  id          String          @id @default(uuid())
+  payslipId   String
+  payslip     Payslip         @relation(fields: [payslipId], references: [id], onDelete: Cascade)
+  type        PayslipItemType
+  code        String          // e.g., "BASIC", "ALLOWANCE", "PAYE", "PENSION", "LOAN"
+  label       String
+  amount      Decimal
+  createdAt   DateTime        @default(now())
+
+  @@index([payslipId])
+}
+
+// Staff loans - repaid through recurring payroll deductions once approved
+model LoanApplication {
+  id                 String     @id @default(uuid())
+  employeeId         String
+  employee           Employee   @relation(fields: [employeeId], references: [id])
+  amount             Decimal
+  termMonths         Int
+  monthlyInstallment Decimal
+  purpose            String
+  status             LoanStatus @default(PENDING)
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  reviewComment      String?
+  deductionId        String?    @unique // Recurring payroll deduction created on approval
+  repaymentStart     DateTime?
+  repaymentEnd       DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
 }
 
 model Deduction {
@@ -428,6 +498,7 @@ model NotificationQueue {
 enum Role {
   SUPER_ADMIN
   HR_ADMIN
+  FINANCE_OFFICER
   MANAGER
   EMPLOYEE
 }
@@ -483,6 +554,26 @@ enum PayrollStatus {
   PROCESSING
   PROCESSED
   PAID
+  CANCELLED
+}
+
+enum PayslipItemType {
+  EARNING
+  DEDUCTION
+}
+
+enum LoanStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ProjectStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  COMPLETED
   CANCELLED
 }
 

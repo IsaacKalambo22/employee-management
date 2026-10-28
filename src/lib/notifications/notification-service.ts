@@ -324,6 +324,22 @@ export class NotificationService {
     });
   }
 
+  static async notifyFinanceUpdate(
+    recipientId: string,
+    subject: string,
+    message: string,
+    metadata?: Record<string, any>
+  ) {
+    return await this.queueNotification({
+      recipientId,
+      type: NotificationType.SYSTEM_ALERT,
+      channels: [NotificationChannel.EMAIL, NotificationChannel.IN_APP],
+      subject,
+      message,
+      metadata,
+    });
+  }
+
   static async notifyPayrollApproved(
     recipientId: string,
     period: string

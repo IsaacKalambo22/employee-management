@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getRequisition, updateRequisition } from "@/lib/actions/requisitions"
 import { RequisitionForm } from "@/components/requisitions/requisition-form"
+import { getRequisitionProjectOptions } from "@/lib/actions/projects"
 import { notFound } from "next/navigation"
 
 export default async function EditRequisitionPage({ params }: { params: Promise<{ id: string }> }) {
@@ -41,7 +42,10 @@ export default async function EditRequisitionPage({ params }: { params: Promise<
     description: requisition.description,
     amount: requisition.amount?.toString() || "",
     category: requisition.category,
+    projectId: requisition.projectId ?? undefined,
   }
+
+  const projects = await getRequisitionProjectOptions()
 
   return (
     <div className="space-y-6">
@@ -56,8 +60,9 @@ export default async function EditRequisitionPage({ params }: { params: Promise<
         <p className="text-gray-600 text-sm mt-1">Update your requisition details</p>
       </div>
       <RequisitionForm 
-        action={(prevState, formData) => updateRequisition(id, prevState, formData)} 
+        action={updateRequisition.bind(null, id)}
         defaultValues={defaultValues}
+        projects={projects}
       />
     </div>
   )

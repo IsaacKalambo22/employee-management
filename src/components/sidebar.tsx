@@ -16,6 +16,8 @@ import {
   DollarSign,
   Settings,
   TrendingUp,
+  Wallet,
+  Briefcase,
 } from "lucide-react"
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -27,11 +29,14 @@ const ICON_MAP: Record<string, React.ElementType> = {
   DollarSign,
   Settings,
   TrendingUp,
+  Wallet,
+  Briefcase,
 }
 
 const ROLE_LABEL: Record<string, string> = {
   SUPER_ADMIN: "Admin",
   HR_ADMIN: "HR Officer",
+  FINANCE_OFFICER: "Finance Officer",
   MANAGER: "Manager",
   EMPLOYEE: "Employee",
 }
@@ -39,6 +44,7 @@ const ROLE_LABEL: Record<string, string> = {
 const ROLE_COLOR: Record<string, string> = {
   SUPER_ADMIN: "bg-red-100 text-red-700",
   HR_ADMIN: "bg-purple-100 text-purple-700",
+  FINANCE_OFFICER: "bg-amber-100 text-amber-700",
   MANAGER: "bg-blue-100 text-blue-700",
   EMPLOYEE: "bg-green-100 text-green-700",
 }

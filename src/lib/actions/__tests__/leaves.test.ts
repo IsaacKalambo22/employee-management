@@ -44,6 +44,13 @@ vi.mock('@/lib/email', () => ({
   sendEmail: vi.fn(),
 }))
 
+vi.mock('@/lib/workflow/leave-entitlement', () => ({
+  LeaveEntitlementService: {
+    hasSufficientBalance: vi.fn(),
+    getOrCreateLeaveBalance: vi.fn(),
+  },
+}))
+
 describe('Leave Actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -69,15 +76,17 @@ describe('Leave Actions', () => {
       const { getServerSession } = await import('next-auth')
       vi.mocked(getServerSession).mockResolvedValue({ user: { id: 'user-id', employeeId: 'test-id' } })
 
-      const { prisma } = await import('@/lib/db')
-      vi.mocked(prisma.leaveBalance.findFirst).mockResolvedValue({
+      const { LeaveEntitlementService } = await import('@/lib/workflow/leave-entitlement')
+      vi.mocked(LeaveEntitlementService.hasSufficientBalance).mockResolvedValue(false)
+      vi.mocked(LeaveEntitlementService.getOrCreateLeaveBalance).mockResolvedValue({
         id: 'balance-id',
         employeeId: 'test-id',
         policyId: '1',
         year: 2024,
         allocated: 10,
-        used: 5,
+        used: 8,
         pending: 0,
+        carriedOver: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
@@ -90,7 +99,7 @@ describe('Leave Actions', () => {
 
       const result = await createLeaveRequest({ message: '' }, formData)
 
-      expect(result.message).toContain('Insufficient balance')
+      expect(result.message).toBe('Insufficient balance. Available: 2 days, Requested: 5 days')
     })
   })
 

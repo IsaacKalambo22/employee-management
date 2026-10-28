@@ -1,7 +1,16 @@
 import { exportAttendanceToPDF } from "@/lib/actions/exports"
 import { NextRequest, NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { checkPermission } from "@/lib/permissions"
 
 export async function GET(request: NextRequest) {
+  // Attendance exports cover all employees - restrict to roles that can read attendance
+  const session = await getServerSession(authOptions)
+  if (!checkPermission(session?.user?.role, "READ_ATTENDANCE")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const searchParams = request.nextUrl.searchParams
     const startDate = searchParams.get("startDate")

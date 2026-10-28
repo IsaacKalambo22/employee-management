@@ -6,6 +6,7 @@ import { Plus, FileText, CheckCircle, Clock, XCircle, Download } from "lucide-re
 import { cn } from "@/lib/utils"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { checkPermission } from "@/lib/permissions"
 import { getRequisitions, approveRequisition, rejectRequisition } from "@/lib/actions/requisitions"
 import { RequisitionApprovalActions } from "@/components/requisitions/requisition-approval-actions"
 import { RequisitionRequestActions } from "@/components/requisitions/requisition-request-actions"
@@ -42,14 +43,18 @@ export default async function RequisitionsPage({
           <p className="text-gray-600 text-sm mt-1">Submit and track requisition requests</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/api/export/requisitions/pdf" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
-            <Download className="mr-2 h-4 w-4" />
-            Export PDF
-          </Link>
-          <Link href="/api/export/requisitions/excel" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
-            <Download className="mr-2 h-4 w-4" />
-            Export Excel
-          </Link>
+          {checkPermission(session?.user?.role, "READ_REQUISITIONS") && (
+            <>
+              <Link href="/api/export/requisitions/pdf" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+                <Download className="mr-2 h-4 w-4" />
+                Export PDF
+              </Link>
+              <Link href="/api/export/requisitions/excel" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+                <Download className="mr-2 h-4 w-4" />
+                Export Excel
+              </Link>
+            </>
+          )}
           {session?.user.employeeId && (
             <Link href="/dashboard/requisitions/new" className={cn(buttonVariants({ size: "sm" }), "inline-flex items-center")}>
               <Plus className="mr-2 h-4 w-4" />

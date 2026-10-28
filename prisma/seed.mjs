@@ -52,7 +52,7 @@ async function main() {
   await prisma.user.create({ data: { email: 'john.smith@company.com', password: hashedPassword, role: 'HR_ADMIN', employeeId: hrManager.id } })
   await prisma.user.create({ data: { email: 'jane.doe@company.com', password: hashedPassword, role: 'MANAGER', employeeId: itManager.id } })
   await prisma.user.create({ data: { email: 'mike.johnson@company.com', password: hashedPassword, role: 'EMPLOYEE', employeeId: developer.id } })
-  await prisma.user.create({ data: { email: 'sarah.williams@company.com', password: hashedPassword, role: 'MANAGER', employeeId: accountant.id } })
+  await prisma.user.create({ data: { email: 'sarah.williams@company.com', password: hashedPassword, role: 'FINANCE_OFFICER', employeeId: accountant.id } })
 
   console.log('📞 Seeding emergency contacts...')
   await prisma.emergencyContact.create({ data: { employeeId: hrManager.id, name: 'Mary Smith', relationship: 'Spouse', phone: '+1234567894', isPrimary: true } })
@@ -86,13 +86,29 @@ async function main() {
     })
   }
 
+  console.log('💰 Seeding salaries...')
+  const salaries = [
+    { employeeId: hrManager.id, baseSalary: 1200000, allowance: 150000 },
+    { employeeId: itManager.id, baseSalary: 1350000, allowance: 150000 },
+    { employeeId: developer.id, baseSalary: 850000, allowance: 75000 },
+    { employeeId: accountant.id, baseSalary: 900000, allowance: 75000 },
+  ]
+  for (const salary of salaries) {
+    await prisma.salary.create({ data: salary })
+  }
+
+  console.log('📁 Seeding department projects...')
+  await prisma.project.create({ data: { departmentId: itDept.id, name: 'Network Infrastructure Upgrade', description: 'Replace core switches and upgrade office Wi-Fi to support growing headcount.', fiscalYear: currentYear, proposedBudget: 12000000, approvedBudget: 10000000, status: 'APPROVED', proposedById: itManager.id, reviewedAt: new Date() } })
+  await prisma.project.create({ data: { departmentId: itDept.id, name: 'HR System Phase 2', description: 'Extend the HR system with self-service payroll, loans and finance reporting.', fiscalYear: currentYear, proposedBudget: 6500000, proposedById: itManager.id } })
+  await prisma.project.create({ data: { departmentId: hrDept.id, name: 'Staff Training Programme', description: 'Annual leadership and compliance training for all staff across departments.', fiscalYear: currentYear, proposedBudget: 4000000, approvedBudget: 4000000, status: 'APPROVED', proposedById: hrManager.id, reviewedAt: new Date() } })
+
   console.log('✅ Database seeded successfully!')
   console.log('\n📋 Default login credentials:')
   console.log('   SUPER_ADMIN: admin@company.com / password123')
   console.log('   HR_ADMIN: john.smith@company.com / password123')
   console.log('   MANAGER: jane.doe@company.com / password123')
   console.log('   EMPLOYEE: mike.johnson@company.com / password123')
-  console.log('   MANAGER: sarah.williams@company.com / password123')
+  console.log('   FINANCE_OFFICER: sarah.williams@company.com / password123')
 }
 
 main()

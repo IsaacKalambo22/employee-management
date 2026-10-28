@@ -6,6 +6,7 @@ import { Plus, Calendar, CheckCircle, Clock, XCircle, Download, Edit2, Trash2 } 
 import { cn } from "@/lib/utils"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { checkPermission } from "@/lib/permissions"
 import { getLeaveBalances, getLeaveRequests, approveLeave, rejectLeave, deleteLeave } from "@/lib/actions/leaves"
 import { LeaveCalendar } from "@/components/leaves/leave-calendar"
 import { LeaveApprovalActions } from "@/components/leaves/leave-approval-actions"
@@ -54,14 +55,18 @@ export default async function LeavePage() {
           <p className="text-gray-600 text-sm mt-1">Manage leave requests and approvals</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/api/export/leave/pdf" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
-            <Download className="mr-2 h-4 w-4" />
-            Export PDF
-          </Link>
-          <Link href="/api/export/leave/excel" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
-            <Download className="mr-2 h-4 w-4" />
-            Export Excel
-          </Link>
+          {checkPermission(session?.user?.role, "READ_LEAVE_REQUESTS") && (
+            <>
+              <Link href="/api/export/leave/pdf" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+                <Download className="mr-2 h-4 w-4" />
+                Export PDF
+              </Link>
+              <Link href="/api/export/leave/excel" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+                <Download className="mr-2 h-4 w-4" />
+                Export Excel
+              </Link>
+            </>
+          )}
           {employeeId && (
             <Link href="/dashboard/leave/new" className={cn(buttonVariants({ size: "sm" }), "inline-flex items-center")}>
               <Plus className="mr-2 h-4 w-4" />

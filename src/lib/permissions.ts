@@ -1,11 +1,12 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 
-export type Role = "SUPER_ADMIN" | "HR_ADMIN" | "MANAGER" | "EMPLOYEE"
+export type Role = "SUPER_ADMIN" | "HR_ADMIN" | "FINANCE_OFFICER" | "MANAGER" | "EMPLOYEE"
 
 export const ROLE_HIERARCHY: Record<Role, number> = {
   SUPER_ADMIN: 4,
   HR_ADMIN: 3,
+  FINANCE_OFFICER: 2,
   MANAGER: 2,
   EMPLOYEE: 1,
 }
@@ -27,44 +28,53 @@ export const PERMISSIONS = {
 
   // Department Management
   CREATE_DEPARTMENT: ["SUPER_ADMIN", "HR_ADMIN"],
-  READ_DEPARTMENTS: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
+  READ_DEPARTMENTS: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
   UPDATE_DEPARTMENT: ["SUPER_ADMIN", "HR_ADMIN"],
   DELETE_DEPARTMENT: ["SUPER_ADMIN"],
   MANAGE_DEPARTMENT_BUDGET: ["SUPER_ADMIN", "HR_ADMIN"],
 
   // Leave Management
-  CREATE_LEAVE_REQUEST: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
+  CREATE_LEAVE_REQUEST: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
   READ_LEAVE_REQUESTS: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"],
-  READ_OWN_LEAVE: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
+  READ_OWN_LEAVE: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
   APPROVE_LEAVE_REQUEST: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"],
   REJECT_LEAVE_REQUEST: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"],
   MANAGE_LEAVE_POLICIES: ["SUPER_ADMIN", "HR_ADMIN"],
   MANAGE_LEAVE_BALANCES: ["SUPER_ADMIN", "HR_ADMIN"],
 
   // Requisition Management
-  CREATE_REQUISITION: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
-  READ_REQUISITIONS: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"],
-  READ_OWN_REQUISITIONS: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
-  APPROVE_REQUISITION: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"],
-  PROCESS_REQUISITION: ["SUPER_ADMIN", "HR_ADMIN"],
-  MANAGE_BUDGETS: ["SUPER_ADMIN", "HR_ADMIN"],
-  CREATE_LPO: ["SUPER_ADMIN", "HR_ADMIN"],
+  CREATE_REQUISITION: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
+  READ_REQUISITIONS: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER"],
+  READ_OWN_REQUISITIONS: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
+  APPROVE_REQUISITION: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER"],
+  PROCESS_REQUISITION: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER"],
+  MANAGE_BUDGETS: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER"],
+  CREATE_LPO: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER"],
+
+  // Finance
+  VIEW_FINANCE: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER"],
+  PROPOSE_PROJECT: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER"],
+  REVIEW_PROJECT: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER"],
 
   // Attendance
-  CLOCK_IN: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
-  CLOCK_OUT: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
+  CLOCK_IN: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
+  CLOCK_OUT: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
   READ_ATTENDANCE: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"],
-  READ_OWN_ATTENDANCE: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
+  READ_OWN_ATTENDANCE: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
   CORRECT_ATTENDANCE: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"],
   READ_TEAM_ATTENDANCE: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"],
 
   // Payroll
   CREATE_PAYROLL: ["SUPER_ADMIN", "HR_ADMIN"],
-  READ_PAYROLL: ["SUPER_ADMIN", "HR_ADMIN"],
+  READ_PAYROLL: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER"],
   UPDATE_PAYROLL: ["SUPER_ADMIN", "HR_ADMIN"],
-  APPROVE_PAYROLL: ["SUPER_ADMIN"],
-  VIEW_OWN_PAYSLIP: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
-  VIEW_SALARY_HISTORY: ["SUPER_ADMIN", "HR_ADMIN"],
+  APPROVE_PAYROLL: ["SUPER_ADMIN", "FINANCE_OFFICER"],
+  VIEW_OWN_PAYSLIP: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
+  VIEW_SALARY_HISTORY: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER"],
+
+  // Staff Loans
+  APPLY_LOAN: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
+  REVIEW_LOAN: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER"],
 
   // System Settings
   MANAGE_SYSTEM_SETTINGS: ["SUPER_ADMIN"],
@@ -82,7 +92,7 @@ export const PERMISSIONS = {
 
   // Notifications
   MANAGE_NOTIFICATIONS: ["SUPER_ADMIN", "HR_ADMIN"],
-  VIEW_NOTIFICATIONS: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
+  VIEW_NOTIFICATIONS: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
 }
 
 // Route access control - which roles can access which routes
@@ -90,20 +100,23 @@ export const ROUTE_PERMISSIONS: Record<string, Role[]> = {
   "/dashboard/admin":    ["SUPER_ADMIN"],
   "/dashboard/hr":       ["SUPER_ADMIN", "HR_ADMIN"],
   "/dashboard/manager":  ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"],
-  "/dashboard/employee": ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
+  "/dashboard/employee": ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
   "/dashboard/employees": ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"],
-  "/dashboard/leave":    ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
-  "/dashboard/requisitions": ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
-  "/dashboard/attendance": ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
-  "/dashboard/payroll":  ["SUPER_ADMIN", "HR_ADMIN"],
-  "/dashboard/settings": ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"],
-  "/dashboard/finance":  ["SUPER_ADMIN", "HR_ADMIN"],
+  "/dashboard/leave":    ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
+  "/dashboard/requisitions": ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
+  "/dashboard/attendance": ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
+  "/dashboard/payroll":  ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
+  "/dashboard/loans":    ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
+  "/dashboard/projects": ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER"],
+  "/dashboard/settings": ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"],
+  "/dashboard/finance":  ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER"],
 }
 
 // Home dashboard per role
 export const ROLE_HOME: Record<Role, string> = {
   SUPER_ADMIN: "/dashboard/admin",
   HR_ADMIN:    "/dashboard/hr",
+  FINANCE_OFFICER: "/dashboard/finance",
   MANAGER:     "/dashboard/manager",
   EMPLOYEE:    "/dashboard/employee",
 }
@@ -144,37 +157,49 @@ export const NAV_ITEMS = [
     name: "Leave",
     href: "/dashboard/leave",
     icon: "Calendar",
-    roles: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"] as Role[],
+    roles: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"] as Role[],
   },
   {
     name: "Requisitions",
     href: "/dashboard/requisitions",
     icon: "FileText",
-    roles: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"] as Role[],
+    roles: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"] as Role[],
   },
   {
     name: "Attendance",
     href: "/dashboard/attendance",
     icon: "Clock",
-    roles: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"] as Role[],
+    roles: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"] as Role[],
   },
   {
     name: "Payroll",
     href: "/dashboard/payroll",
     icon: "DollarSign",
-    roles: ["SUPER_ADMIN", "HR_ADMIN"] as Role[],
+    roles: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"] as Role[],
+  },
+  {
+    name: "Loans",
+    href: "/dashboard/loans",
+    icon: "Wallet",
+    roles: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"] as Role[],
   },
   {
     name: "Finance",
     href: "/dashboard/finance",
     icon: "TrendingUp",
-    roles: ["SUPER_ADMIN", "HR_ADMIN"] as Role[],
+    roles: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER"] as Role[],
+  },
+  {
+    name: "Projects",
+    href: "/dashboard/projects",
+    icon: "Briefcase",
+    roles: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER"] as Role[],
   },
   {
     name: "Settings",
     href: "/dashboard/settings",
     icon: "Settings",
-    roles: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"] as Role[],
+    roles: ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER", "EMPLOYEE"] as Role[],
   },
 ]
 

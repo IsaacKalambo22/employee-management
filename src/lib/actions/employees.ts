@@ -19,7 +19,7 @@ const EmployeeSchema = z.object({
   grade: z.string().optional().or(z.literal("")),
   hireDate: z.string().min(1, "Hire date is required"),
   status: z.enum(["ACTIVE", "INACTIVE", "TERMINATED", "ON_LEAVE"]).default("ACTIVE"),
-  role: z.enum(["EMPLOYEE", "MANAGER", "HR_ADMIN", "SUPER_ADMIN"]).default("EMPLOYEE"),
+  role: z.enum(["EMPLOYEE", "MANAGER", "FINANCE_OFFICER", "HR_ADMIN", "SUPER_ADMIN"]).default("EMPLOYEE"),
   password: z.string().min(6, "Password must be at least 6 characters").optional(),
 })
 

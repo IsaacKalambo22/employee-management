@@ -13,13 +13,14 @@ const ROUTE_ROLE_MAP: Record<string, string[]> = {
   "/dashboard/hr":         ["SUPER_ADMIN", "HR_ADMIN"],
   "/dashboard/manager":    ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"],
   "/dashboard/employees":  ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"],
-  "/dashboard/payroll":    ["SUPER_ADMIN", "HR_ADMIN"],
-  "/dashboard/finance":    ["SUPER_ADMIN", "HR_ADMIN"],
+  "/dashboard/finance":    ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER"],
+  "/dashboard/projects":   ["SUPER_ADMIN", "HR_ADMIN", "FINANCE_OFFICER", "MANAGER"],
 }
 
 const ROLE_HOME: Record<string, string> = {
   SUPER_ADMIN: "/dashboard/admin",
   HR_ADMIN:    "/dashboard/hr",
+  FINANCE_OFFICER: "/dashboard/finance",
   MANAGER:     "/dashboard/manager",
   EMPLOYEE:    "/dashboard/employee",
 }

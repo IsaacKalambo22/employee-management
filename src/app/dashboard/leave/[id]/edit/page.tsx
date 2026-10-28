@@ -60,7 +60,7 @@ export default async function EditLeavePage({ params }: { params: Promise<{ id: 
         <p className="text-gray-600 text-sm mt-1">Update your leave request details</p>
       </div>
       <LeaveForm 
-        action={(prevState, formData) => updateLeave(id, prevState, formData)} 
+        action={updateLeave.bind(null, id)} 
         policies={policies} 
         balances={balances}
         defaultValues={defaultValues}

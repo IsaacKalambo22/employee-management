@@ -6,14 +6,16 @@ import { prisma } from "@/lib/db"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { NotificationService } from "@/lib/notifications/notification-service"
-import { AuditLogService } from "@/lib/audit/audit-log"
+import { AuditAction, AuditLogService } from "@/lib/audit/audit-log"
+import { checkPermission, requirePermission } from "@/lib/permissions"
+import { calculatePayslip, formatPeriod, periodBounds } from "@/lib/payroll/calculations"
 
 const SalarySchema = z.object({
   employeeId: z.string().min(1, "Employee is required"),
-  baseSalary: z.string().min(1, "Base salary is required"),
-  allowance: z.string().optional(),
-  bonus: z.string().optional(),
-  deductions: z.string().optional(),
+  baseSalary: z.coerce.number().positive("Base salary must be greater than zero"),
+  allowance: z.coerce.number().min(0, "Allowance cannot be negative").default(0),
+  bonus: z.coerce.number().min(0, "Bonus cannot be negative").default(0),
+  deductions: z.coerce.number().min(0, "Deductions cannot be negative").default(0),
 })
 
 const DeductionSchema = z.object({
@@ -26,29 +28,38 @@ const DeductionSchema = z.object({
   endDate: z.string().optional(),
 })
 
+const PeriodSchema = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Select a valid payroll month")
+
 export type PayrollFormState = {
   errors?: Record<string, string[]>
   message?: string
   success?: boolean
 }
 
+function revalidatePayroll() {
+  revalidatePath("/dashboard/payroll")
+  revalidatePath("/dashboard/finance")
+}
+
 // Salary Management
+// Creates the employee's salary record, or updates it if one already exists
 export async function createSalary(
   prevState: PayrollFormState,
   formData: FormData
 ): Promise<PayrollFormState> {
   const session = await getServerSession(authOptions)
   if (!session) return { message: "Unauthorized" }
+  try { await requirePermission("UPDATE_PAYROLL") } catch { return { message: "Forbidden: only HR can manage salaries" } }
 
-  const raw = {
-    employeeId: formData.get("employeeId") as string,
-    baseSalary: formData.get("baseSalary") as string,
-    allowance: formData.get("allowance") as string,
-    bonus: formData.get("bonus") as string,
-    deductions: formData.get("deductions") as string,
-  }
-
-  const parsed = SalarySchema.safeParse(raw)
+  const parsed = SalarySchema.safeParse({
+    employeeId: formData.get("employeeId"),
+    baseSalary: formData.get("baseSalary"),
+    allowance: formData.get("allowance") || 0,
+    bonus: formData.get("bonus") || 0,
+    deductions: formData.get("deductions") || 0,
+  })
   if (!parsed.success) {
     return { errors: parsed.error.flatten().fieldErrors }
   }
@@ -56,31 +67,24 @@ export async function createSalary(
   const { employeeId, baseSalary, allowance, bonus, deductions } = parsed.data
 
   try {
-    await prisma.salary.create({
-      data: {
-        employeeId,
-        baseSalary: parseFloat(baseSalary),
-        allowance: allowance ? parseFloat(allowance) : 0,
-        bonus: bonus ? parseFloat(bonus) : 0,
-        deductions: deductions ? parseFloat(deductions) : 0,
-      },
+    const salary = await prisma.salary.upsert({
+      where: { employeeId },
+      create: { employeeId, baseSalary, allowance, bonus, deductions },
+      update: { baseSalary, allowance, bonus, deductions, effectiveDate: new Date() },
     })
 
-    await prisma.auditLog.create({
-      data: {
-        actorId: session.user.id,
-        action: "CREATE_SALARY",
-        entityType: "Salary",
-        entityId: employeeId,
-        metadata: { baseSalary, allowance, bonus },
-      },
+    await AuditLogService.log({
+      action: AuditAction.SALARY_UPDATED,
+      entityType: "Salary",
+      entityId: salary.id,
+      details: { employeeId, baseSalary, allowance, bonus, deductions },
     })
   } catch (e) {
-    return { message: "Failed to create salary" }
+    return { message: "Failed to save salary" }
   }
 
-  revalidatePath("/dashboard/payroll")
-  return { success: true, message: "Salary created successfully" }
+  revalidatePayroll()
+  return { success: true, message: "Salary saved successfully" }
 }
 
 export async function updateSalary(
@@ -92,6 +96,7 @@ export async function updateSalary(
 ): Promise<PayrollFormState> {
   const session = await getServerSession(authOptions)
   if (!session) return { message: "Unauthorized" }
+  try { await requirePermission("UPDATE_PAYROLL") } catch { return { message: "Forbidden: only HR can manage salaries" } }
 
   try {
     await prisma.salary.update({
@@ -99,26 +104,22 @@ export async function updateSalary(
       data: { baseSalary, allowance, bonus, deductions },
     })
 
-    await prisma.auditLog.create({
-      data: {
-        actorId: session.user.id,
-        action: "UPDATE_SALARY",
-        entityType: "Salary",
-        entityId: salaryId,
-        metadata: { baseSalary, allowance, bonus },
-      },
+    await AuditLogService.log({
+      action: AuditAction.SALARY_UPDATED,
+      entityType: "Salary",
+      entityId: salaryId,
+      details: { baseSalary, allowance, bonus, deductions },
     })
   } catch (e) {
     return { message: "Failed to update salary" }
   }
 
-  revalidatePath("/dashboard/payroll")
+  revalidatePayroll()
   return { success: true, message: "Salary updated successfully" }
 }
 
 export async function getSalaries() {
-  const session = await getServerSession(authOptions)
-  if (!session) throw new Error("Unauthorized")
+  await requirePermission("READ_PAYROLL")
 
   return prisma.salary.findMany({
     include: {
@@ -128,9 +129,28 @@ export async function getSalaries() {
   })
 }
 
+// Active employees with their current salary, for the salary management table
+export async function getPayrollEmployees() {
+  await requirePermission("READ_PAYROLL")
+
+  return prisma.employee.findMany({
+    where: { status: { in: ["ACTIVE", "ON_LEAVE"] } },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      department: { select: { name: true } },
+      position: { select: { title: true } },
+      salary: true,
+    },
+    orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+  })
+}
+
 export async function getSalary(employeeId: string) {
   const session = await getServerSession(authOptions)
   if (!session) throw new Error("Unauthorized")
+  if (session.user.employeeId !== employeeId) await requirePermission("READ_PAYROLL")
 
   return prisma.salary.findUnique({
     where: { employeeId },
@@ -144,6 +164,7 @@ export async function createDeduction(
 ): Promise<PayrollFormState> {
   const session = await getServerSession(authOptions)
   if (!session) return { message: "Unauthorized" }
+  try { await requirePermission("UPDATE_PAYROLL") } catch { return { message: "Forbidden: only HR can manage deductions" } }
 
   const raw = {
     employeeId: formData.get("employeeId") as string,
@@ -188,13 +209,12 @@ export async function createDeduction(
     return { message: "Failed to create deduction" }
   }
 
-  revalidatePath("/dashboard/payroll")
+  revalidatePayroll()
   return { success: true, message: "Deduction created successfully" }
 }
 
 export async function getDeductions(employeeId?: string) {
-  const session = await getServerSession(authOptions)
-  if (!session) throw new Error("Unauthorized")
+  await requirePermission("READ_PAYROLL")
 
   return prisma.deduction.findMany({
     where: employeeId ? { employeeId } : {},
@@ -205,113 +225,125 @@ export async function getDeductions(employeeId?: string) {
   })
 }
 
-// Tax Calculation (simplified for Malawi)
-const TAX_RATE = 0.2 // 20% tax rate
-const TAX_THRESHOLD = 100000 // Monthly tax threshold in MWK
+// Payroll Processing
+// Form action used by the "Run Payroll" dialog
+export async function runPayroll(
+  prevState: PayrollFormState,
+  formData: FormData
+): Promise<PayrollFormState> {
+  const parsed = PeriodSchema.safeParse(formData.get("period"))
+  if (!parsed.success) {
+    return { errors: { period: parsed.error.issues.map((i) => i.message) } }
+  }
 
-function calculateTax(grossPay: number): number {
-  if (grossPay <= TAX_THRESHOLD) return 0
-  return (grossPay - TAX_THRESHOLD) * TAX_RATE
+  const { startDate, endDate } = periodBounds(parsed.data)
+  return processPayroll(parsed.data, startDate, endDate)
 }
 
-// Payroll Processing
 export async function processPayroll(period: string, startDate: Date, endDate: Date): Promise<PayrollFormState> {
   const session = await getServerSession(authOptions)
   if (!session) return { message: "Unauthorized" }
+  try { await requirePermission("CREATE_PAYROLL") } catch { return { message: "Forbidden: only HR can process payroll" } }
+
+  const existing = await prisma.payroll.findUnique({ where: { period } })
+  if (existing) {
+    return { message: `A payroll for ${formatPeriod(period)} already exists` }
+  }
+
+  const salaries = await prisma.salary.findMany({
+    where: { employee: { status: { in: ["ACTIVE", "ON_LEAVE"] } } },
+    include: { employee: { include: { user: true } } },
+  })
+  if (salaries.length === 0) {
+    return { message: "No active employees have a salary record. Set up salaries before running payroll." }
+  }
+
+  // Recurring deductions apply to every period they overlap; one-off deductions
+  // only apply to the period their start date falls in.
+  const deductions = await prisma.deduction.findMany({
+    where: {
+      employeeId: { in: salaries.map((s) => s.employeeId) },
+      OR: [
+        {
+          isRecurring: true,
+          startDate: { lte: endDate },
+          AND: [{ OR: [{ endDate: null }, { endDate: { gte: startDate } }] }],
+        },
+        { isRecurring: false, startDate: { gte: startDate, lte: endDate } },
+      ],
+    },
+  })
+
+  let totals = { gross: 0, net: 0 }
 
   try {
-    // Create payroll record
-    const payroll = await prisma.payroll.create({
-      data: {
-        period,
-        startDate,
-        endDate,
-        status: "PROCESSING",
-      },
-    })
-
-    // Get all employees with salaries
-    const salaries = await prisma.salary.findMany({
-      include: { employee: { include: { user: true } } },
-    })
-
-    // Process each employee
-    for (const salary of salaries) {
-      // Calculate gross pay
-      const grossPay = Number(salary.baseSalary) + Number(salary.allowance) + Number(salary.bonus)
-
-      // Calculate tax
-      const tax = calculateTax(grossPay)
-
-      // Get employee deductions for the period
-      const deductions = await prisma.deduction.findMany({
-        where: {
-          employeeId: salary.employeeId,
-          startDate: { lte: endDate },
-          OR: [{ endDate: null }, { endDate: { gte: startDate } }],
-        },
+    const payroll = await prisma.$transaction(async (tx) => {
+      const created = await tx.payroll.create({
+        data: { period, startDate, endDate, status: "PROCESSING" },
       })
 
-      const totalDeductions = deductions.reduce((sum: number, d: any) => sum + Number(d.amount), 0) + Number(salary.deductions)
-
-      // Calculate net pay
-      const netPay = grossPay - tax - totalDeductions
-
-      // Create payslip
-      await prisma.payslip.create({
-        data: {
-          payrollId: payroll.id,
-          employeeId: salary.employeeId,
-          baseSalary: salary.baseSalary,
-          allowance: salary.allowance,
-          bonus: salary.bonus,
-          grossPay,
-          tax,
-          otherDeductions: totalDeductions,
-          netPay,
-        },
-      })
-    }
-
-    // Update payroll status
-    await prisma.payroll.update({
-      where: { id: payroll.id },
-      data: {
-        status: "PROCESSED",
-        processedAt: new Date(),
-        processedBy: session.user.id,
-      },
-    })
-
-    // Notify all employees that payroll has been processed
-    for (const salary of salaries) {
-      if (salary.employee.user?.id) {
-        await NotificationService.notifyPayrollUploaded(
-          salary.employee.user.id,
-          period
+      for (const salary of salaries) {
+        const result = calculatePayslip(
+          {
+            baseSalary: Number(salary.baseSalary),
+            allowance: Number(salary.allowance),
+            bonus: Number(salary.bonus),
+            standingDeduction: Number(salary.deductions),
+          },
+          deductions
+            .filter((d) => d.employeeId === salary.employeeId)
+            .map((d) => ({ type: d.type, amount: Number(d.amount), description: d.description }))
         )
-      }
-    }
 
-    // Log payroll processing using AuditLogService
-    const totalAmount = salaries.reduce((sum, s) => sum + Number(s.baseSalary) + Number(s.allowance) + Number(s.bonus), 0)
-    await AuditLogService.logPayrollProcessed(
-      payroll.id,
-      period,
-      salaries.length,
-      totalAmount
-    )
+        totals = { gross: totals.gross + result.grossPay, net: totals.net + result.netPay }
+
+        await tx.payslip.create({
+          data: {
+            payrollId: created.id,
+            employeeId: salary.employeeId,
+            baseSalary: salary.baseSalary,
+            allowance: salary.allowance,
+            bonus: salary.bonus,
+            grossPay: result.grossPay,
+            tax: result.tax,
+            otherDeductions: result.otherDeductions,
+            netPay: result.netPay,
+            items: { create: result.items },
+          },
+        })
+      }
+
+      return tx.payroll.update({
+        where: { id: created.id },
+        data: { status: "PROCESSED", processedAt: new Date(), processedBy: session.user.id },
+      })
+    }, { timeout: 60_000 })
+
+    await AuditLogService.logPayrollProcessed(payroll.id, period, salaries.length, totals.gross)
   } catch (e) {
+    console.error("Payroll processing failed:", e)
     return { message: "Failed to process payroll" }
   }
 
-  revalidatePath("/dashboard/payroll")
-  return { success: true, message: "Payroll processed successfully" }
+  // Notifications are best-effort and must not fail a completed payroll run
+  for (const salary of salaries) {
+    if (!salary.employee.user?.id) continue
+    try {
+      await NotificationService.notifyPayrollUploaded(salary.employee.user.id, formatPeriod(period))
+    } catch (e) {
+      console.error("Failed to send payroll notification:", e)
+    }
+  }
+
+  revalidatePayroll()
+  return {
+    success: true,
+    message: `Payroll for ${formatPeriod(period)} processed for ${salaries.length} employee(s)`,
+  }
 }
 
 export async function getPayrolls() {
-  const session = await getServerSession(authOptions)
-  if (!session) throw new Error("Unauthorized")
+  await requirePermission("READ_PAYROLL")
 
   return prisma.payroll.findMany({
     include: {
@@ -326,8 +358,7 @@ export async function getPayrolls() {
 }
 
 export async function getPayroll(id: string) {
-  const session = await getServerSession(authOptions)
-  if (!session) throw new Error("Unauthorized")
+  await requirePermission("READ_PAYROLL")
 
   return prisma.payroll.findUnique({
     where: { id },
@@ -336,6 +367,7 @@ export async function getPayroll(id: string) {
         include: {
           employee: { include: { department: true } },
         },
+        orderBy: { employee: { firstName: "asc" } },
       },
     },
   })
@@ -345,16 +377,16 @@ export async function getPayslips(employeeId?: string) {
   const session = await getServerSession(authOptions)
   if (!session) throw new Error("Unauthorized")
 
-  // If employeeId is provided, check if user has permission to view other employees' payslips
+  // Salary data is confidential: only payroll staff may view other employees' payslips
   if (employeeId && session.user.employeeId !== employeeId) {
-    const userRole = session.user.role
-    if (userRole !== "SUPER_ADMIN" && userRole !== "HR_ADMIN" && userRole !== "MANAGER") {
+    if (!checkPermission(session.user.role, "READ_PAYROLL")) {
       throw new Error("Unauthorized to view other employees' payslips")
     }
   }
 
   // If no employeeId provided, use the current user's employeeId
   const targetEmployeeId = employeeId || session.user.employeeId
+  if (!targetEmployeeId) return []
 
   return prisma.payslip.findMany({
     where: { employeeId: targetEmployeeId },
@@ -362,8 +394,41 @@ export async function getPayslips(employeeId?: string) {
       employee: { select: { firstName: true, lastName: true, department: { select: { name: true } } } },
       payroll: true,
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: { payroll: { period: "desc" } },
   })
+}
+
+// Single payslip with its itemised earnings and deductions.
+// Returns null if it doesn't exist or the user may not view it.
+export async function getPayslipDetail(payslipId: string) {
+  const session = await getServerSession(authOptions)
+  if (!session) throw new Error("Unauthorized")
+
+  const payslip = await prisma.payslip.findUnique({
+    where: { id: payslipId },
+    include: {
+      items: { orderBy: { createdAt: "asc" } },
+      payroll: true,
+      employee: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          grade: true,
+          hireDate: true,
+          department: { select: { name: true } },
+          position: { select: { title: true } },
+        },
+      },
+    },
+  })
+  if (!payslip) return null
+
+  const isOwner = session.user.employeeId === payslip.employeeId
+  if (!isOwner && !checkPermission(session.user.role, "READ_PAYROLL")) return null
+
+  return payslip
 }
 
 // Employee self-service: Get own payslips
@@ -376,7 +441,7 @@ export async function getMyPayslips() {
     include: {
       payroll: true,
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: { payroll: { period: "desc" } },
   })
 }
 
@@ -402,33 +467,48 @@ export async function getMyDeductions() {
   })
 }
 
+// Finance releases a processed payroll for payment
 export async function markPayrollPaid(payrollId: string): Promise<PayrollFormState> {
   const session = await getServerSession(authOptions)
   if (!session) return { message: "Unauthorized" }
+  try { await requirePermission("APPROVE_PAYROLL") } catch { return { message: "Forbidden: only Finance can release payroll" } }
 
   try {
-    await prisma.payroll.update({
+    const payroll = await prisma.payroll.findUnique({
       where: { id: payrollId },
-      data: { status: "PAID" },
+      include: { payslips: { include: { employee: { include: { user: true } } } } },
+    })
+    if (!payroll) return { message: "Payroll not found" }
+    if (payroll.status !== "PROCESSED") return { message: "Only processed payrolls can be marked as paid" }
+    if (payroll.processedBy === session.user.id) {
+      return { message: "Segregation of duties: payroll must be released by someone other than the person who processed it" }
+    }
+
+    const paidAt = new Date()
+    await prisma.$transaction([
+      prisma.payroll.update({ where: { id: payrollId }, data: { status: "PAID" } }),
+      prisma.payslip.updateMany({ where: { payrollId }, data: { payDate: paidAt } }),
+    ])
+
+    await AuditLogService.log({
+      action: AuditAction.PAYROLL_PAID,
+      entityType: "Payroll",
+      entityId: payrollId,
+      details: { period: payroll.period, employeeCount: payroll.payslips.length },
     })
 
-    await prisma.payslip.updateMany({
-      where: { payrollId },
-      data: { payDate: new Date() },
-    })
-
-    await prisma.auditLog.create({
-      data: {
-        actorId: session.user.id,
-        action: "MARK_PAID",
-        entityType: "Payroll",
-        entityId: payrollId,
-      },
-    })
+    for (const payslip of payroll.payslips) {
+      if (!payslip.employee.user?.id) continue
+      try {
+        await NotificationService.notifyPayrollApproved(payslip.employee.user.id, formatPeriod(payroll.period))
+      } catch (e) {
+        console.error("Failed to send payroll paid notification:", e)
+      }
+    }
   } catch (e) {
     return { message: "Failed to mark payroll as paid" }
   }
 
-  revalidatePath("/dashboard/payroll")
+  revalidatePayroll()
   return { success: true, message: "Payroll marked as paid" }
 }

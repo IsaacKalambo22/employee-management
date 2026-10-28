@@ -1,7 +1,16 @@
 import { exportEmployeesToPDF } from "@/lib/actions/exports"
 import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { checkPermission } from "@/lib/permissions"
 
 export async function GET() {
+  // Employee exports contain personal data - restrict to roles that can read employees
+  const session = await getServerSession(authOptions)
+  if (!checkPermission(session?.user?.role, "READ_EMPLOYEES")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const pdfBuffer = await exportEmployeesToPDF()
     

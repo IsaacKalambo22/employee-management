@@ -9,13 +9,34 @@ import { WorkflowEngine } from "@/lib/workflow/workflow-engine"
 import { NotificationService } from "@/lib/notifications/notification-service"
 import { AuditLogService } from "@/lib/audit/audit-log"
 import { requirePermission } from "@/lib/permissions"
+import { chargeProject, checkProjectFunds } from "@/lib/finance/project-budget"
 
 const RequisitionSchema = z.object({
   title: z.string().min(2, "Title must be at least 2 characters"),
   description: z.string().min(5, "Description must be at least 5 characters"),
   amount: z.string().optional(),
   category: z.string().min(1, "Category is required"),
+  projectId: z.string().optional(),
 })
+
+// A requisition may only be charged to an approved project in the requester's
+// department that still has funds for the amount requested.
+async function validateProjectLink(
+  employeeId: string,
+  projectId: string | undefined,
+  amount: number | null
+): Promise<string | null> {
+  if (!projectId) return null
+
+  const [employee, project] = await Promise.all([
+    prisma.employee.findUnique({ where: { id: employeeId }, select: { departmentId: true } }),
+    prisma.project.findUnique({ where: { id: projectId }, select: { departmentId: true } }),
+  ])
+  if (!project || project.departmentId !== employee?.departmentId) {
+    return "Selected project is not available for your department"
+  }
+  return amount ? checkProjectFunds(projectId, amount) : null
+}
 
 export type RequisitionFormState = {
   errors?: Record<string, string[]>
@@ -62,6 +83,7 @@ export async function createRequisition(
     description: formData.get("description") as string,
     amount: formData.get("amount") as string,
     category: formData.get("category") as string,
+    projectId: (formData.get("projectId") as string) || undefined,
   }
 
   const parsed = RequisitionSchema.safeParse(raw)
@@ -69,7 +91,10 @@ export async function createRequisition(
     return { errors: parsed.error.flatten().fieldErrors }
   }
 
-  const { title, description, amount, category } = parsed.data
+  const { title, description, amount, category, projectId } = parsed.data
+
+  const projectError = await validateProjectLink(session.user.employeeId, projectId, amount ? parseFloat(amount) : null)
+  if (projectError) return { errors: { projectId: [projectError] } }
 
   try {
     const employee = await prisma.employee.findUnique({
@@ -84,6 +109,7 @@ export async function createRequisition(
         description,
         amount: amount ? parseFloat(amount) : null,
         category,
+        projectId: projectId || null,
         status: "PENDING",
       },
     })
@@ -155,6 +181,12 @@ export async function approveRequisition(requisitionId: string, level: number): 
     })
     if (!requisition) return { message: "Requisition not found" }
 
+    // Project-funded requisitions must stay within the project's approved budget
+    if (requisition.projectId && requisition.amount) {
+      const fundsError = await checkProjectFunds(requisition.projectId, Number(requisition.amount))
+      if (fundsError) return { message: fundsError }
+    }
+
     // Check if using workflow engine
     if (requisition.workflowInstanceId) {
       // Use workflow engine for approval
@@ -188,6 +220,10 @@ export async function approveRequisition(requisitionId: string, level: number): 
                 data: { spent: { increment: requisition.amount } },
               })
             }
+          }
+
+          if (requisition.projectId && requisition.amount) {
+            await chargeProject(requisition.projectId, Number(requisition.amount))
           }
 
           // Notify employee of approval
@@ -271,6 +307,10 @@ export async function approveRequisition(requisitionId: string, level: number): 
               data: { spent: { increment: requisition.amount } },
             })
           }
+        }
+
+        if (requisition.projectId && requisition.amount) {
+          await chargeProject(requisition.projectId, Number(requisition.amount))
         }
 
         // Notify employee of approval
@@ -485,6 +525,7 @@ export async function updateRequisition(
       description: formData.get("description") as string,
       amount: formData.get("amount") as string,
       category: formData.get("category") as string,
+      projectId: (formData.get("projectId") as string) || undefined,
     }
 
     const parsed = RequisitionSchema.safeParse(raw)
@@ -492,7 +533,10 @@ export async function updateRequisition(
       return { errors: parsed.error.flatten().fieldErrors }
     }
 
-    const { title, description, amount, category } = parsed.data
+    const { title, description, amount, category, projectId } = parsed.data
+
+    const projectError = await validateProjectLink(requisition.employeeId, projectId, amount ? parseFloat(amount) : null)
+    if (projectError) return { errors: { projectId: [projectError] } }
 
     await prisma.requisition.update({
       where: { id: requisitionId },
@@ -501,6 +545,7 @@ export async function updateRequisition(
         description,
         amount: amount ? parseFloat(amount) : null,
         category,
+        projectId: projectId || null,
       },
     })
 
