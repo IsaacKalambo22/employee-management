@@ -40,6 +40,19 @@ describe("calculatePayslip", () => {
     expect(result.items.find((i) => i.code === "BONUS")).toBeUndefined()
   })
 
+  it("uses exactly the salary entered by HR (reported case: basic 386,181 + allowance 60,000)", () => {
+    const result = calculatePayslip(
+      { baseSalary: 386_181, allowance: 60_000, bonus: 0, standingDeduction: 84_163.35 },
+      []
+    )
+
+    expect(result.grossPay).toBe(446_181)
+    expect(result.tax).toBe(74_045.25) // 25% of the 296,181 above the tax-free band
+    expect(result.items.find((i) => i.code === "PENSION")?.amount).toBe(19_309.05)
+    expect(result.otherDeductions).toBe(103_472.4) // pension + other fixed deductions
+    expect(result.netPay).toBe(268_663.35)
+  })
+
   it("omits PAYE line when no tax is due", () => {
     const result = calculatePayslip({ baseSalary: 100_000, allowance: 0, bonus: 0, standingDeduction: 0 }, [])
     expect(result.tax).toBe(0)

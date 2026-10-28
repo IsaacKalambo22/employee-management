@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { DollarSign, Calendar, Download, ChevronRight } from "lucide-react"
+import { DollarSign, Calendar, Download, ChevronRight, Wallet } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
@@ -11,7 +11,7 @@ import { getMyPayslips, getPayrollEmployees, getPayrolls } from "@/lib/actions/p
 import { formatMWK, formatPeriod } from "@/lib/payroll/calculations"
 import { StatusBadge } from "@/components/finance/status-badge"
 import { PayrollReleaseButton } from "@/components/finance/review-actions"
-import { RunPayrollDialog, SalaryDialog } from "@/components/payroll/payroll-admin-actions"
+import { RecalculatePayrollButton, RunPayrollDialog, SalaryDialog } from "@/components/payroll/payroll-admin-actions"
 
 export default async function PayrollPage() {
   const session = await getServerSession(authOptions)
@@ -43,8 +43,15 @@ export default async function PayrollPage() {
             {canReadPayroll ? "Monthly payslips, payroll processing and salaries" : "Your monthly payslips, earnings and deductions"}
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {session?.user?.employeeId && (
+            <Link href="/dashboard/loans/new" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
+              <Wallet className="mr-2 h-4 w-4" />
+              Apply for Loan
+            </Link>
+          )}
         {canReadPayroll && (
-          <div className="flex items-center gap-2">
+          <>
             <Link href="/api/export/payroll/pdf" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex items-center")}>
               <Download className="mr-2 h-4 w-4" />
               Export PDF
@@ -54,8 +61,9 @@ export default async function PayrollPage() {
               Export Excel
             </Link>
             {canProcess && <RunPayrollDialog />}
-          </div>
+          </>
         )}
+        </div>
       </div>
 
       {session?.user?.employeeId && (
@@ -189,9 +197,21 @@ export default async function PayrollPage() {
                         <TableCell className="text-right font-semibold">{formatMWK(net)}</TableCell>
                         <TableCell><StatusBadge status={payroll.status} /></TableCell>
                         <TableCell className="text-right">
-                          {canRelease && payroll.status === "PROCESSED" && payroll.processedBy !== session?.user?.id && (
-                            <PayrollReleaseButton payrollId={payroll.id} period={formatPeriod(payroll.period)} />
-                          )}
+                          <div className="flex items-center justify-end gap-2">
+                            <Link
+                              href={`/dashboard/payroll/runs/${payroll.id}`}
+                              className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "inline-flex items-center")}
+                            >
+                              Breakdown
+                              <ChevronRight className="ml-1 h-4 w-4" />
+                            </Link>
+                            {canProcess && payroll.status === "PROCESSED" && (
+                              <RecalculatePayrollButton payrollId={payroll.id} period={formatPeriod(payroll.period)} />
+                            )}
+                            {canRelease && payroll.status === "PROCESSED" && payroll.processedBy !== session?.user?.id && (
+                              <PayrollReleaseButton payrollId={payroll.id} period={formatPeriod(payroll.period)} />
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     )

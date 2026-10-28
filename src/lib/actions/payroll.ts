@@ -84,6 +84,17 @@ export async function createSalary(
   }
 
   revalidatePayroll()
+
+  const unpaid = await prisma.payroll.findFirst({
+    where: { status: "PROCESSED", payslips: { some: { employeeId } } },
+    orderBy: { period: "desc" },
+  })
+  if (unpaid) {
+    return {
+      success: true,
+      message: `Salary saved. Recalculate the ${formatPeriod(unpaid.period)} payroll to apply the new figures.`,
+    }
+  }
   return { success: true, message: "Salary saved successfully" }
 }
 
@@ -245,9 +256,11 @@ export async function processPayroll(period: string, startDate: Date, endDate: D
   if (!session) return { message: "Unauthorized" }
   try { await requirePermission("CREATE_PAYROLL") } catch { return { message: "Forbidden: only HR can process payroll" } }
 
+  // An unpaid payroll can be recalculated (e.g. after a salary correction);
+  // once Finance has marked it paid it is locked.
   const existing = await prisma.payroll.findUnique({ where: { period } })
-  if (existing) {
-    return { message: `A payroll for ${formatPeriod(period)} already exists` }
+  if (existing?.status === "PAID") {
+    return { message: `Payroll for ${formatPeriod(period)} has already been paid and can no longer be changed` }
   }
 
   const salaries = await prisma.salary.findMany({
@@ -278,9 +291,18 @@ export async function processPayroll(period: string, startDate: Date, endDate: D
 
   try {
     const payroll = await prisma.$transaction(async (tx) => {
-      const created = await tx.payroll.create({
-        data: { period, startDate, endDate, status: "PROCESSING" },
-      })
+      let created
+      if (existing) {
+        await tx.payslip.deleteMany({ where: { payrollId: existing.id } })
+        created = await tx.payroll.update({
+          where: { id: existing.id },
+          data: { startDate, endDate, status: "PROCESSING" },
+        })
+      } else {
+        created = await tx.payroll.create({
+          data: { period, startDate, endDate, status: "PROCESSING" },
+        })
+      }
 
       for (const salary of salaries) {
         const result = calculatePayslip(
@@ -338,7 +360,7 @@ export async function processPayroll(period: string, startDate: Date, endDate: D
   revalidatePayroll()
   return {
     success: true,
-    message: `Payroll for ${formatPeriod(period)} processed for ${salaries.length} employee(s)`,
+    message: `Payroll for ${formatPeriod(period)} ${existing ? "recalculated" : "processed"} for ${salaries.length} employee(s)`,
   }
 }
 
@@ -366,11 +388,21 @@ export async function getPayroll(id: string) {
       payslips: {
         include: {
           employee: { include: { department: true } },
+          items: true,
         },
         orderBy: { employee: { firstName: "asc" } },
       },
     },
   })
+}
+
+// Re-runs an unpaid payroll with current salaries and deductions
+export async function recalculatePayroll(payrollId: string): Promise<PayrollFormState> {
+  const payroll = await prisma.payroll.findUnique({ where: { id: payrollId } })
+  if (!payroll) return { message: "Payroll not found" }
+
+  const { startDate, endDate } = periodBounds(payroll.period)
+  return processPayroll(payroll.period, startDate, endDate)
 }
 
 export async function getPayslips(employeeId?: string) {

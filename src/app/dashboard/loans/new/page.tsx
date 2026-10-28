@@ -11,7 +11,7 @@ export default async function NewLoanPage() {
   const blocker = !eligibility
     ? "No employee record is linked to your account."
     : !eligibility.hasSalary
-      ? "Your salary record has not been set up yet. Contact HR before applying."
+      ? "Your salary has not been set up in payroll yet. HR must add it (Payroll → Employee Salaries) before you can apply."
       : eligibility.hasOpenLoan
         ? "You already have a loan pending review or being repaid."
         : null
